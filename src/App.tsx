@@ -1,4 +1,5 @@
-import { Canvas, useThree, ThreeEvent } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
+import type { ThreeEvent } from '@react-three/fiber'
 import { OrbitControls, Grid, Html } from '@react-three/drei'
 import { Suspense, useState, useRef, useCallback, useEffect, type CSSProperties } from 'react'
 import * as THREE from 'three'
