@@ -17,7 +17,7 @@ export type FigureData = {
 }
 
 const WOOD_TONES = ['#e8d4b0', '#d4b896', '#c9a66b', '#b8956a', '#a67c52', '#8b6914', '#d2b48c', '#c4a35a']
-const STORAGE_KEY = 'systemisches-brett-v1'
+const STORAGE_KEY = 'systemisches-brett-v2'
 
 const initialFigures: FigureData[] = [
   { id: '1', position: [-3.2, 0, -1.8], rotationY: 0.3, color: '#e8d4b0', label: '', type: 'tall' },
@@ -116,6 +116,7 @@ function FigureMesh({
   onDragStart: (id: string, e: ThreeEvent<PointerEvent>) => void
 }) {
   const blockH = data.onBlock ? 0.35 : 0
+  const label = (data.label || '').trim()
   return (
     <group
       position={data.position}
@@ -152,13 +153,13 @@ function FigureMesh({
           </mesh>
         )}
       </group>
-      {data.label && (
+      {label ? (
         <Html position={[0, data.type === 'tall' ? 2.1 : data.type === 'medium' ? 1.6 : 1.2, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
           <div style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}>
-            {data.label}
+            {label}
           </div>
         </Html>
-      )}
+      ) : null}
     </group>
   )
 }
@@ -272,7 +273,10 @@ export default function App() {
   const [figures, setFigures] = useState<FigureData[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) return JSON.parse(raw) as FigureData[]
+      if (raw) {
+        const parsed = JSON.parse(raw) as FigureData[]
+        return parsed.map((f) => ({ ...f, label: (f.label || '').trim() }))
+      }
     } catch {}
     return initialFigures
   })
@@ -361,7 +365,7 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         skipHistory.current = true
-        setFigures(JSON.parse(raw))
+        setFigures((JSON.parse(raw) as FigureData[]).map((f) => ({ ...f, label: (f.label || '').trim() })))
         setSelectedId(null)
       }
     } catch {}
@@ -387,7 +391,7 @@ export default function App() {
             <div style={{ fontWeight: 600 }}>Ausgewählt</div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               Label
-              <input value={labelInput} onChange={(e) => setLabelInput(e.target.value)} onBlur={() => updateFigure(selected.id, { label: labelInput })} onKeyDown={(e) => { if (e.key === 'Enter') updateFigure(selected.id, { label: labelInput }) }} style={inputStyle} />
+              <input value={labelInput} onChange={(e) => setLabelInput(e.target.value)} onBlur={() => updateFigure(selected.id, { label: labelInput.trim() })} onKeyDown={(e) => { if (e.key === 'Enter') updateFigure(selected.id, { label: labelInput.trim() }) }} style={inputStyle} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               Holzton
