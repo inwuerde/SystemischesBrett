@@ -1,0 +1,64 @@
+{
+  "display_information": {
+    "display_name": "SystemischesBrett",
+    "description": "3D systemisches Brett für Aufstellungen in Zoom-Meetings",
+    "long_description": "Interaktives 3D-Brett mit Holzfiguren für systemische Aufstellungen. Figuren platzieren, beschriften und mit Meeting-Teilnehmern teilen. Speichern unter mit Versionierung. Ideal für Beratung, Coaching und Therapie in Zoom."
+  },
+  "oauth_information": {
+    "usage": "USER_OPERATION",
+    "development_redirect_uri": "https://YOUR_NGROK_OR_DOMAIN/auth",
+    "production_redirect_uri": "https://YOUR_PRODUCTION_DOMAIN/auth",
+    "oauth_allow_list": [
+      "https://YOUR_NGROK_OR_DOMAIN",
+      "https://YOUR_PRODUCTION_DOMAIN"
+    ],
+    "strict_mode": false,
+    "scopes": [
+      {
+        "scope": "zoomapp:inmeeting",
+        "optional": false
+      }
+    ],
+    "scope_description": "In-Meeting Zoom App für systemische Aufstellungen"
+  },
+  "features": {
+    "products": ["ZOOM_MEETING"],
+    "development_home_uri": "https://YOUR_NGROK_OR_DOMAIN/",
+    "production_home_uri": "https://YOUR_PRODUCTION_DOMAIN/",
+    "domain_allow_list": [
+      {
+        "domain": "YOUR_NGROK_OR_DOMAIN",
+        "explanation": "Development tunnel"
+      },
+      {
+        "domain": "YOUR_PRODUCTION_DOMAIN",
+        "explanation": "Production hosting"
+      },
+      {
+        "domain": "appssdk.zoom.us",
+        "explanation": "Zoom Apps SDK"
+      }
+    ],
+    "in_client_feature": {
+      "zoom_app_api": {
+        "enable": true,
+        "zoom_app_apis": [
+          "shareApp",
+          "getRunningContext",
+          "getUserContext",
+          "getMeetingContext",
+          "getMeetingUUID",
+          "postMessage",
+          "onMessage",
+          "expandApp",
+          "openUrl",
+          "getSupportedJsApis"
+        ]
+      },
+      "guest_mode": {
+        "enable": true,
+        "enable_test_guest_mode": true
+      }
+    }
+  }
+}
