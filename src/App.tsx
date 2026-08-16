@@ -213,8 +213,13 @@ function Board({ split, onPointerDown }: { split: boolean; onPointerDown?: () =>
   )
 }
 
-const FOCUS_COLOR = '#fff4c8'
+const BOARD_TOP = 0.12
+const FOCUS_Y = BOARD_TOP + 0.008
+const FOCUS_COLOR = '#d8c48a'
 const PEDESTAL_SIZE = 0.5
+/** Abstand Figurkante → Innenkante des Rings (wie bei der großen Holzfigur). */
+const FOCUS_GAP = 0.038
+const FOCUS_THICKNESS = 0.10
 const FOCUS_RING: Record<FigureType, [number, number]> = {
   tall: [0.34, 0.44],
   medium: [0.28, 0.38],
@@ -224,22 +229,62 @@ const FOCUS_RING: Record<FigureType, [number, number]> = {
   block: [0.36, 0.46],
 }
 
-function FocusRing({ type, onPedestal }: { type: FigureType; onPedestal: boolean }) {
-  const [inner, outer] = FOCUS_RING[type]
-  const pad = onPedestal ? 0.12 : 0
+function focusMaterial() {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} renderOrder={2}>
-      <ringGeometry args={[inner + pad, outer + pad, 48]} />
-      <meshBasicMaterial color={FOCUS_COLOR} transparent opacity={0.95} depthTest={false} />
-    </mesh>
+    <meshBasicMaterial
+      color={FOCUS_COLOR}
+      transparent
+      opacity={0.8}
+      depthWrite={false}
+      polygonOffset
+      polygonOffsetFactor={-1}
+      polygonOffsetUnits={-1}
+    />
   )
 }
 
-function CubeHighlight({ size, y }: { size: number; y: number }) {
+function makeSquareFrame(innerHalf: number, outerHalf: number) {
+  const shape = new THREE.Shape()
+  shape.moveTo(-outerHalf, -outerHalf)
+  shape.lineTo(outerHalf, -outerHalf)
+  shape.lineTo(outerHalf, outerHalf)
+  shape.lineTo(-outerHalf, outerHalf)
+  shape.closePath()
+  const hole = new THREE.Path()
+  hole.moveTo(-innerHalf, -innerHalf)
+  hole.lineTo(-innerHalf, innerHalf)
+  hole.lineTo(innerHalf, innerHalf)
+  hole.lineTo(innerHalf, -innerHalf)
+  hole.closePath()
+  shape.holes.push(hole)
+  return shape
+}
+
+function FocusRing({ type, onPedestal }: { type: FigureType; onPedestal: boolean }) {
+  const square = type === 'cube' || type === 'block'
+  const geometry = useMemo(() => {
+    if (!square) return null
+    const half = (type === 'block' ? 0.55 : 0.5) / 2
+    const innerHalf = half + FOCUS_GAP
+    const outerHalf = innerHalf + FOCUS_THICKNESS
+    return new THREE.ShapeGeometry(makeSquareFrame(innerHalf, outerHalf))
+  }, [square, type])
+  useEffect(() => () => geometry?.dispose(), [geometry])
+
+  if (square && geometry) {
+    return (
+      <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, FOCUS_Y, 0]} renderOrder={-1}>
+        {focusMaterial()}
+      </mesh>
+    )
+  }
+
+  const [inner, outer] = FOCUS_RING[type]
+  const pad = onPedestal ? 0.12 : 0
   return (
-    <mesh position={[0, y, 0]} scale={1.07}>
-      <boxGeometry args={[size, size, size]} />
-      <meshBasicMaterial color={FOCUS_COLOR} side={THREE.BackSide} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FOCUS_Y, 0]} renderOrder={-1}>
+      <ringGeometry args={[inner + pad, outer + pad, 48]} />
+      {focusMaterial()}
     </mesh>
   )
 }
@@ -292,26 +337,20 @@ function FigureMesh({
     >
       {selected && <FocusRing type={data.type} onPedestal={onPedestal} />}
       {onPedestal && (
-        <>
-          <mesh position={[0, PEDESTAL_SIZE / 2, 0]} castShadow>
-            <boxGeometry args={[PEDESTAL_SIZE, PEDESTAL_SIZE, PEDESTAL_SIZE]} />
-            {woodMat('#c4a35a', 0.7)}
-          </mesh>
-          {selected && <CubeHighlight size={PEDESTAL_SIZE} y={PEDESTAL_SIZE / 2} />}
-        </>
+        <mesh position={[0, PEDESTAL_SIZE / 2, 0]} castShadow>
+          <boxGeometry args={[PEDESTAL_SIZE, PEDESTAL_SIZE, PEDESTAL_SIZE]} />
+          {woodMat('#c4a35a', 0.7)}
+        </mesh>
       )}
       <group position={[0, blockH, 0]}>
         {data.type === 'tall' && <PegDoll height={1.6} color={data.color} />}
         {data.type === 'medium' && <PegDoll height={1.15} color={data.color} />}
         {data.type === 'small' && <PegDoll height={0.85} color={data.color} />}
         {data.type === 'cube' && (
-          <>
-            <mesh position={[0, 0.25, 0]} castShadow>
-              <boxGeometry args={[0.5, 0.5, 0.5]} />
-              {woodMat(data.color, 0.7)}
-            </mesh>
-            {selected && <CubeHighlight size={0.5} y={0.25} />}
-          </>
+          <mesh position={[0, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            {woodMat(data.color, 0.7)}
+          </mesh>
         )}
         {data.type === 'disc' && (
           <mesh position={[0, 0.06, 0]} castShadow>
