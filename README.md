@@ -8,12 +8,32 @@ Interaktives **3D systemisches Brett** (Holzfiguren-Aufstellung) – als **Zoom 
 
 ## Funktionen
 
+Kurze Clips der Grundfunktionen (Aufnahmen der laufenden App, angelehnt an die Aufstellungen vom 8. August):
+
+| Clip | Inhalt |
+|------|--------|
+| [Brett und Schlangenlinie](docs/videos/01-brett-schlangenlinie.mp4) | Holzbrett, 6-Wellen-Linie, Kamera |
+| [Figuren platzieren](docs/videos/02-figuren-platzieren.mp4) | Figuren setzen, beschriften, verschieben |
+| [Fokus und Podest](docs/videos/03-fokus-und-podest.mp4) | Anklicken, heller Ring, Würfel als Podest |
+| [Spielfeld trennen](docs/videos/04-spielfeld-trennen.mp4) | Hälften entlang der Schlange öffnen und schließen |
+| [Kamera](docs/videos/05-kamera.mp4) | Presets Iso, Oben, Seite, Front |
+| [Speichern und laden](docs/videos/06-speichern-laden.mp4) | Speichern unter, Version, laden |
+| [Zoom App](docs/videos/07-zoom-app.mp4) | Demo-Meeting, teilen, synchronisieren |
+
+Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run dev` und `node scripts/record-docs-videos.mjs`.
+
 ### Brett und Schlangenlinie
+
+<video src="docs/videos/01-brett-schlangenlinie.mp4" controls muted playsinline width="720"></video>
 
 - Holzbrett mit Rahmen, in der Mitte eine **Schlangenlinie mit 6 Sinuswellen** (dünner Trennstrich, gemäßigte Amplitude).
 - Die Linie teilt das Spielfeld in eine linke und eine rechte Hälfte; die Schnittkante folgt der Welle.
 - **Spielfeld trennen** (unter *Entfernen*, bzw. unter dem Hinweis wenn nichts ausgewählt ist) rückt die Hälften entlang der Schlangenlinie um etwa **2 cm** auseinander. Figuren bleiben auf ihrer Seite.
 - **Spielfeld zusammenführen** schließt die Lücke wieder. Die Trennung ist eine Ansicht, gespeicherte Stände bleiben in Brettkoordinaten.
+
+[Video: Spielfeld trennen](docs/videos/04-spielfeld-trennen.mp4)
+
+<video src="docs/videos/04-spielfeld-trennen.mp4" controls muted playsinline width="720"></video>
 
 ### Figuren
 
@@ -25,15 +45,23 @@ Interaktives **3D systemisches Brett** (Holzfiguren-Aufstellung) – als **Zoom 
 | + Würfel | Holzwürfel |
 | + Scheibe | flacher Holzteller (liegt auf der Fläche) |
 
-- Figuren **ziehen** (auf dem Brett verschieben) und **anklicken** (auswählen).
+<video src="docs/videos/02-figuren-platzieren.mp4" controls muted playsinline width="720"></video>
+
+- Figuren **ziehen** (auf dem Brett verschieben) und **anklicken** (Fokus setzen).
+- Die fokussierte Figur zeigt einen **hellen Ring um die Basis**. Ein Würfel bekommt zusätzlich einen **hellen Rand**.
 - **Label** setzen, mit Enter oder Verlassen des Feldes übernehmen; erscheint als Namensschild über der Figur.
 - **Holzton** aus acht Farbtönen wählen.
-- **Auf Podest** stellt die Figur auf einen kleinen Holzklotz.
+- **Auf Podest** gilt nur für die fokussierte Figur und stellt sie auf einen **Holzwürfel**.
+
+<video src="docs/videos/03-fokus-und-podest.mp4" controls muted playsinline width="720"></video>
+
 - **Drehen** nach links oder rechts.
 - **Entfernen** löscht die ausgewählte Figur.
 - **Brett leeren** entfernt alle Figuren.
 
 ### Kamera
+
+<video src="docs/videos/05-kamera.mp4" controls muted playsinline width="720"></video>
 
 - Freies Drehen, Zoomen und Schwenken per Maus (Orbit).
 - Presets: **Iso**, **Oben**, **Seite**, **Front**.
@@ -47,6 +75,8 @@ Interaktives **3D systemisches Brett** (Holzfiguren-Aufstellung) – als **Zoom 
 
 Alles lokal im Browser (`localStorage`), ohne Server.
 
+<video src="docs/videos/06-speichern-laden.mp4" controls muted playsinline width="720"></video>
+
 - **Speichern unter**: Name eingeben, Stand anlegen (startet bei Version 1). Auch per Enter im Namensfeld.
 - **Neue Version**: weiteren Stand unter demselben Namen speichern (v2, v3, …).
 - **Gespeicherte Dateien**: Liste nach Name und Version; **Laden** stellt den Stand wieder her, **Löschen** entfernt ihn.
@@ -55,6 +85,8 @@ Alles lokal im Browser (`localStorage`), ohne Server.
 ### Zoom App
 
 Im Zoom-Meeting (oder per `?zoom=1` als Demo):
+
+<video src="docs/videos/07-zoom-app.mp4" controls muted playsinline width="720"></video>
 
 - Status-Badge: Kontext (Standalone / Zoom App, Nutzer, Meeting-Titel).
 - **App teilen** zeigt die App den anderen Teilnehmern.
