@@ -9,7 +9,7 @@ test.describe('SystemischesBrett – App Shell', () => {
   test('lädt Titel, Sidebar und 3D-Canvas', async ({ page }) => {
     await expect(page.getByText('SystemischesBrett')).toBeVisible()
     await expect(page.getByText('Holzfiguren · Schlangenlinie')).toBeVisible()
-    await expect(page.getByText('Figuren hinzufügen')).toBeVisible()
+    await expect(page.getByRole('button', { name: '+ Große Figur' })).toBeVisible()
     await expect(page.locator('canvas')).toBeVisible()
     await expect(page.getByText('Figur anklicken oder ziehen')).toBeVisible()
   })
@@ -279,5 +279,25 @@ test.describe('SystemischesBrett – Accessibility & Layout', () => {
     await expect(btn).toBeEnabled()
     await btn.hover()
     await expect(btn).toBeVisible()
+  })
+})
+
+test.describe('SystemischesBrett – Spielfeld trennen', () => {
+  test.beforeEach(async ({ page }) => {
+    await openApp(page)
+  })
+
+  test('zeigt Taste Spielfeld trennen', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Spielfeld trennen' })).toBeVisible()
+  })
+
+  test('Taste trennt und führt das Spielfeld wieder zusammen', async ({ page }) => {
+    const btn = page.getByTestId('board-split')
+    await expect(btn).toHaveText('Spielfeld trennen')
+    await btn.click()
+    await expect(btn).toHaveText('Spielfeld zusammenführen')
+    await expect(page.locator('canvas')).toBeVisible()
+    await btn.click()
+    await expect(btn).toHaveText('Spielfeld trennen')
   })
 })

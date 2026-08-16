@@ -1,7 +1,7 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
-import { Suspense, useState, useRef, useCallback, useEffect, type CSSProperties } from 'react'
+import { Suspense, useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import * as THREE from 'three'
 import { useZoomApp } from './zoom'
 
@@ -20,6 +20,52 @@ export type FigureData = {
 const WOOD_TONES = ['#e8d4b0', '#d4b896', '#c9a66b', '#b8956a', '#a67c52', '#8b6914', '#d2b48c', '#c4a35a']
 const SAVES_KEY = 'systemisches-brett-saves-v2'
 const LAST_KEY = 'systemisches-brett-last-v1'
+
+const BOARD_SIZE = 11
+const BOARD_HALF = BOARD_SIZE / 2
+const SNAKE_WAVES = 6
+const SNAKE_AMPLITUDE = 0.325
+const SNAKE_SEGMENTS = 96
+/** Brett ≈ 50 cm bei 11 Einheiten → 2 cm Abstand ≈ 0.44 */
+const SPLIT_GAP = 0.44
+
+function snakeXAtT(t: number) {
+  return Math.sin(t * Math.PI * 2 * SNAKE_WAVES) * SNAKE_AMPLITUDE
+}
+
+function snakeXAtZ(z: number) {
+  return snakeXAtT((z + BOARD_HALF) / BOARD_SIZE)
+}
+
+function figureSplitSign(position: [number, number, number]): -1 | 1 {
+  return position[0] < snakeXAtZ(position[2]) ? -1 : 1
+}
+
+function makeSnakePoints() {
+  const pts: { x: number; z: number }[] = []
+  for (let i = 0; i <= SNAKE_SEGMENTS; i++) {
+    const t = i / SNAKE_SEGMENTS
+    pts.push({ x: snakeXAtT(t), z: -BOARD_HALF + t * BOARD_SIZE })
+  }
+  return pts
+}
+
+function makeHalfShape(side: 'left' | 'right') {
+  const shape = new THREE.Shape()
+  const outerX = side === 'left' ? -BOARD_HALF : BOARD_HALF
+  const snake = makeSnakePoints()
+  if (side === 'left') {
+    shape.moveTo(outerX, snake[0].z)
+    for (const p of snake) shape.lineTo(p.x, p.z)
+    shape.lineTo(outerX, snake[snake.length - 1].z)
+  } else {
+    shape.moveTo(outerX, snake[0].z)
+    shape.lineTo(outerX, snake[snake.length - 1].z)
+    for (let i = snake.length - 1; i >= 0; i--) shape.lineTo(snake[i].x, snake[i].z)
+  }
+  shape.closePath()
+  return shape
+}
 
 type SavedBoard = {
   id: string
@@ -89,36 +135,80 @@ function woodMat(color: string, roughness = 0.75) {
   return <meshStandardMaterial color={color} roughness={roughness} metalness={0.05} />
 }
 
-function Board({ onPointerDown }: { onPointerDown?: () => void }) {
-  const curvePoints: THREE.Vector3[] = []
-  for (let i = 0; i <= 40; i++) {
-    const t = i / 40
-    const z = -5.5 + t * 11
-    const x = Math.sin(t * Math.PI * 1.15) * 0.55
-    curvePoints.push(new THREE.Vector3(x, 0.04, z))
-  }
-  const curve = new THREE.CatmullRomCurve3(curvePoints)
+function SnakeGroove() {
+  const curve = useMemo(() => {
+    const pts = makeSnakePoints().map((p) => new THREE.Vector3(p.x, 0.13, p.z))
+    return new THREE.CatmullRomCurve3(pts)
+  }, [])
+  return (
+    <mesh>
+      <tubeGeometry args={[curve, 128, 0.016, 8, false]} />
+      <meshStandardMaterial color="#5c4a32" roughness={0.9} />
+    </mesh>
+  )
+}
+
+function BoardHalf({
+  side,
+  split,
+  onPointerDown,
+  showGroove,
+}: {
+  side: 'left' | 'right'
+  split: boolean
+  onPointerDown?: () => void
+  showGroove: boolean
+}) {
+  const geometry = useMemo(() => {
+    return new THREE.ExtrudeGeometry(makeHalfShape(side), {
+      depth: 0.12,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 1,
+    })
+  }, [side])
+  useEffect(() => () => geometry.dispose(), [geometry])
+
+  const offsetX = split ? (side === 'left' ? -SPLIT_GAP / 2 : SPLIT_GAP / 2) : 0
+  const rimX = side === 'left' ? -2.75 : 2.75
+  const outerX = side === 'left' ? -5.55 : 5.55
+
+  return (
+    <group position={[offsetX, 0, 0]}>
+      <mesh
+        geometry={geometry}
+        rotation={[Math.PI / 2, 0, 0]}
+        position={[0, 0.12, 0]}
+        receiveShadow
+        castShadow
+        onPointerDown={onPointerDown}
+        name={`board-${side}`}
+      >
+        <meshStandardMaterial color="#e5d5b5" roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[outerX, 0.08, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.35, 0.16, 11]} />
+        {woodMat('#d4c4a0', 0.8)}
+      </mesh>
+      <mesh position={[rimX, 0.08, -5.55]} castShadow receiveShadow>
+        <boxGeometry args={[5.6, 0.16, 0.35]} />
+        {woodMat('#d4c4a0', 0.8)}
+      </mesh>
+      <mesh position={[rimX, 0.08, 5.55]} castShadow receiveShadow>
+        <boxGeometry args={[5.6, 0.16, 0.35]} />
+        {woodMat('#d4c4a0', 0.8)}
+      </mesh>
+      {showGroove && <SnakeGroove />}
+    </group>
+  )
+}
+
+function Board({ split, onPointerDown }: { split: boolean; onPointerDown?: () => void }) {
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow onPointerDown={onPointerDown} name="board">
-        <planeGeometry args={[11, 11]} />
-        {woodMat('#e5d5b5', 0.85)}
-      </mesh>
-      {[
-        { pos: [0, 0.08, -5.55] as [number, number, number], size: [11.3, 0.16, 0.35] as [number, number, number] },
-        { pos: [0, 0.08, 5.55] as [number, number, number], size: [11.3, 0.16, 0.35] as [number, number, number] },
-        { pos: [-5.55, 0.08, 0] as [number, number, number], size: [0.35, 0.16, 11] as [number, number, number] },
-        { pos: [5.55, 0.08, 0] as [number, number, number], size: [0.35, 0.16, 11] as [number, number, number] },
-      ].map((b, i) => (
-        <mesh key={i} position={b.pos} castShadow receiveShadow>
-          <boxGeometry args={b.size} />
-          {woodMat('#d4c4a0', 0.8)}
-        </mesh>
-      ))}
-      <mesh>
-        <tubeGeometry args={[curve, 64, 0.035, 8, false]} />
-        <meshStandardMaterial color="#5c4a32" roughness={0.9} />
-      </mesh>
+      <BoardHalf side="left" split={split} onPointerDown={onPointerDown} showGroove={split} />
+      <BoardHalf side="right" split={split} onPointerDown={onPointerDown} showGroove={split} />
+      {!split && <SnakeGroove />}
     </group>
   )
 }
@@ -157,17 +247,19 @@ function PegDoll({ height, color, selected }: { height: number; color: string; s
 }
 
 function FigureMesh({
-  data, selected, onSelect, onDragStart,
+  data, selected, onSelect, onDragStart, split,
 }: {
   data: FigureData
   selected: boolean
   onSelect: (id: string) => void
   onDragStart: (id: string, e: ThreeEvent<PointerEvent>) => void
+  split: boolean
 }) {
   const blockH = data.onBlock ? 0.35 : 0
   const label = (data.label || '').trim()
+  const offsetX = split ? figureSplitSign(data.position) * (SPLIT_GAP / 2) : 0
   return (
-    <group position={data.position} rotation={[0, data.rotationY, 0]}
+    <group position={[data.position[0] + offsetX, data.position[1], data.position[2]]} rotation={[0, data.rotationY, 0]}
       onClick={(e) => { e.stopPropagation(); onSelect(data.id) }}
       onPointerDown={(e) => { e.stopPropagation(); onDragStart(data.id, e) }}
     >
@@ -188,7 +280,7 @@ function FigureMesh({
           </mesh>
         )}
         {data.type === 'disc' && (
-          <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow>
+          <mesh position={[0, 0.06, 0]} castShadow>
             <cylinderGeometry args={[0.35, 0.35, 0.12, 24]} />
             {woodMat(data.color, 0.75)}
           </mesh>
@@ -229,7 +321,7 @@ function CameraController({ preset }: { preset: string | null }) {
 }
 
 function Scene({
-  figures, selectedId, onSelect, onMove, dragging, setDragging, cameraPreset,
+  figures, selectedId, onSelect, onMove, dragging, setDragging, cameraPreset, split,
 }: {
   figures: FigureData[]
   selectedId: string | null
@@ -238,6 +330,7 @@ function Scene({
   dragging: string | null
   setDragging: (id: string | null) => void
   cameraPreset: string | null
+  split: boolean
 }) {
   const { camera, gl } = useThree()
   const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
@@ -251,12 +344,16 @@ function Scene({
     const target = new THREE.Vector3()
     raycaster.current.ray.intersectPlane(plane.current, target)
     if (target) {
-      target.x = Math.max(-5, Math.min(5, target.x))
-      target.z = Math.max(-5, Math.min(5, target.z))
-      return [target.x, 0, target.z] as [number, number, number]
+      let x = target.x
+      const z = Math.max(-BOARD_HALF, Math.min(BOARD_HALF, target.z))
+      if (split) {
+        x = x < snakeXAtZ(z) ? x + SPLIT_GAP / 2 : x - SPLIT_GAP / 2
+      }
+      x = Math.max(-BOARD_HALF, Math.min(BOARD_HALF, x))
+      return [x, 0, z] as [number, number, number]
     }
     return null
-  }, [camera, gl])
+  }, [camera, gl, split])
   const handleDragStart = (id: string, e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
     setDragging(id)
@@ -282,9 +379,9 @@ function Scene({
       <ambientLight intensity={0.65} />
       <directionalLight position={[5, 12, 6]} intensity={1.2} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-4, 6, -3]} intensity={0.35} />
-      <Board onPointerDown={() => { if (!dragging) onSelect(null) }} />
+      <Board split={split} onPointerDown={() => { if (!dragging) onSelect(null) }} />
       {figures.map((f) => (
-        <FigureMesh key={f.id} data={f} selected={selectedId === f.id} onSelect={onSelect} onDragStart={handleDragStart} />
+        <FigureMesh key={f.id} data={f} selected={selectedId === f.id} onSelect={onSelect} onDragStart={handleDragStart} split={split} />
       ))}
       <OrbitControls makeDefault enabled={!dragging} minDistance={3} maxDistance={22} maxPolarAngle={Math.PI / 2.05} />
       <CameraController preset={cameraPreset} />
@@ -316,6 +413,7 @@ export default function App() {
   const [history, setHistory] = useState<FigureData[][]>([initialFigures])
   const [historyIndex, setHistoryIndex] = useState(0)
   const [cameraPreset, setCameraPreset] = useState<string | null>(null)
+  const [split, setSplit] = useState(false)
   const skipHistory = useRef(false)
 
   const applyRemoteBoard = useCallback((figs: FigureData[]) => {
@@ -536,6 +634,9 @@ export default function App() {
               <button data-testid="zoom-sync" onClick={() => void zoom.broadcastBoard(figures)} style={btnStyle}>🔄 Brett synchronisieren</button>
             </div>
           )}
+          <button data-testid="board-split" onClick={() => setSplit((v) => !v)} style={btnStyle}>
+            {split ? 'Spielfeld zusammenführen' : 'Spielfeld trennen'}
+          </button>
           <button onClick={clearBoard} style={{ ...btnStyle, background: '#3a2a1a' }}>Brett leeren</button>
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
@@ -543,7 +644,7 @@ export default function App() {
       <div data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, position: 'relative' }}>
         <Canvas shadows camera={{ position: [6, 5, 7], fov: 42 }} style={{ background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)' }} onPointerMissed={() => handleSelect(null)}>
           <Suspense fallback={null}>
-            <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} />
+            <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} split={split} />
           </Suspense>
         </Canvas>
       </div>
