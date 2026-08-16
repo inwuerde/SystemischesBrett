@@ -48,7 +48,7 @@ Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run
 <video src="docs/videos/02-figuren-platzieren.mp4" controls muted playsinline width="720"></video>
 
 - Figuren **ziehen** (auf dem Brett verschieben) und **anklicken** (Fokus setzen).
-- Die fokussierte Figur zeigt einen **hellen Ring um die Basis**. Ein Würfel bekommt zusätzlich einen **hellen Rand**.
+- Die fokussierte Figur zeigt einen **gedämpften Ring um die Basis** (hinter der Figur auf dem Brett). Dasselbe gilt für den Würfel.
 - **Label** setzen, mit Enter oder Verlassen des Feldes übernehmen; erscheint als Namensschild über der Figur.
 - **Holzton** aus acht Farbtönen wählen.
 - **Auf Podest** gilt nur für die fokussierte Figur und stellt sie auf einen **Holzwürfel**.
