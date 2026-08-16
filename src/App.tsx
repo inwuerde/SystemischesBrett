@@ -593,9 +593,17 @@ export default function App() {
               <button onClick={() => rotateSelected(0.4)} style={btnStyle}>Drehen ↻</button>
             </div>
             <button onClick={removeSelected} style={{ ...btnStyle, background: '#5c2a2a' }}>Entfernen</button>
+            <button data-testid="board-split" onClick={() => setSplit((v) => !v)} style={btnStyle}>
+              {split ? 'Spielfeld zusammenführen' : 'Spielfeld trennen'}
+            </button>
           </div>
         ) : (
-          <div style={{ opacity: 0.6, fontSize: 13 }}>Figur anklicken oder ziehen</div>
+          <>
+            <div style={{ opacity: 0.6, fontSize: 13 }}>Figur anklicken oder ziehen</div>
+            <button data-testid="board-split" onClick={() => setSplit((v) => !v)} style={btnStyle}>
+              {split ? 'Spielfeld zusammenführen' : 'Spielfeld trennen'}
+            </button>
+          </>
         )}
         <hr style={{ border: 'none', borderTop: '1px solid #2a3a4a' }} />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -634,9 +642,6 @@ export default function App() {
               <button data-testid="zoom-sync" onClick={() => void zoom.broadcastBoard(figures)} style={btnStyle}>🔄 Brett synchronisieren</button>
             </div>
           )}
-          <button data-testid="board-split" onClick={() => setSplit((v) => !v)} style={btnStyle}>
-            {split ? 'Spielfeld zusammenführen' : 'Spielfeld trennen'}
-          </button>
           <button onClick={clearBoard} style={{ ...btnStyle, background: '#3a2a1a' }}>Brett leeren</button>
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
