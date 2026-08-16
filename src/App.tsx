@@ -213,7 +213,38 @@ function Board({ split, onPointerDown }: { split: boolean; onPointerDown?: () =>
   )
 }
 
-function PegDoll({ height, color, selected }: { height: number; color: string; selected: boolean }) {
+const FOCUS_COLOR = '#fff4c8'
+const PEDESTAL_SIZE = 0.5
+const FOCUS_RING: Record<FigureType, [number, number]> = {
+  tall: [0.34, 0.44],
+  medium: [0.28, 0.38],
+  small: [0.22, 0.32],
+  cube: [0.38, 0.48],
+  disc: [0.36, 0.46],
+  block: [0.36, 0.46],
+}
+
+function FocusRing({ type, onPedestal }: { type: FigureType; onPedestal: boolean }) {
+  const [inner, outer] = FOCUS_RING[type]
+  const pad = onPedestal ? 0.12 : 0
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} renderOrder={2}>
+      <ringGeometry args={[inner + pad, outer + pad, 48]} />
+      <meshBasicMaterial color={FOCUS_COLOR} transparent opacity={0.95} depthTest={false} />
+    </mesh>
+  )
+}
+
+function CubeHighlight({ size, y }: { size: number; y: number }) {
+  return (
+    <mesh position={[0, y, 0]} scale={1.07}>
+      <boxGeometry args={[size, size, size]} />
+      <meshBasicMaterial color={FOCUS_COLOR} side={THREE.BackSide} />
+    </mesh>
+  )
+}
+
+function PegDoll({ height, color }: { height: number; color: string }) {
   const headR = height * 0.22
   const bodyH = height * 0.55
   const bodyR = height * 0.18
@@ -236,12 +267,6 @@ function PegDoll({ height, color, selected }: { height: number; color: string; s
         <sphereGeometry args={[headR * 0.12, 8, 8]} />
         <meshStandardMaterial color="#2a2a2a" />
       </mesh>
-      {selected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-          <ringGeometry args={[bodyR * 1.4, bodyR * 1.7, 32]} />
-          <meshBasicMaterial color="#fff" transparent opacity={0.7} />
-        </mesh>
-      )}
     </group>
   )
 }
@@ -255,29 +280,38 @@ function FigureMesh({
   onDragStart: (id: string, e: ThreeEvent<PointerEvent>) => void
   split: boolean
 }) {
-  const blockH = data.onBlock ? 0.35 : 0
+  const onPedestal = !!data.onBlock
+  const blockH = onPedestal ? PEDESTAL_SIZE : 0
   const label = (data.label || '').trim()
   const offsetX = split ? figureSplitSign(data.position) * (SPLIT_GAP / 2) : 0
+  const labelY = (data.type === 'tall' ? 2.1 : data.type === 'medium' ? 1.6 : 1.2) + blockH
   return (
     <group position={[data.position[0] + offsetX, data.position[1], data.position[2]]} rotation={[0, data.rotationY, 0]}
       onClick={(e) => { e.stopPropagation(); onSelect(data.id) }}
       onPointerDown={(e) => { e.stopPropagation(); onDragStart(data.id, e) }}
     >
-      {data.onBlock && (
-        <mesh position={[0, blockH / 2, 0]} castShadow>
-          <boxGeometry args={[0.45, blockH, 0.45]} />
-          {woodMat('#c4a35a', 0.8)}
-        </mesh>
+      {selected && <FocusRing type={data.type} onPedestal={onPedestal} />}
+      {onPedestal && (
+        <>
+          <mesh position={[0, PEDESTAL_SIZE / 2, 0]} castShadow>
+            <boxGeometry args={[PEDESTAL_SIZE, PEDESTAL_SIZE, PEDESTAL_SIZE]} />
+            {woodMat('#c4a35a', 0.7)}
+          </mesh>
+          {selected && <CubeHighlight size={PEDESTAL_SIZE} y={PEDESTAL_SIZE / 2} />}
+        </>
       )}
       <group position={[0, blockH, 0]}>
-        {data.type === 'tall' && <PegDoll height={1.6} color={data.color} selected={selected} />}
-        {data.type === 'medium' && <PegDoll height={1.15} color={data.color} selected={selected} />}
-        {data.type === 'small' && <PegDoll height={0.85} color={data.color} selected={selected} />}
+        {data.type === 'tall' && <PegDoll height={1.6} color={data.color} />}
+        {data.type === 'medium' && <PegDoll height={1.15} color={data.color} />}
+        {data.type === 'small' && <PegDoll height={0.85} color={data.color} />}
         {data.type === 'cube' && (
-          <mesh position={[0, 0.28, 0]} castShadow>
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
-            {woodMat(data.color, 0.7)}
-          </mesh>
+          <>
+            <mesh position={[0, 0.25, 0]} castShadow>
+              <boxGeometry args={[0.5, 0.5, 0.5]} />
+              {woodMat(data.color, 0.7)}
+            </mesh>
+            {selected && <CubeHighlight size={0.5} y={0.25} />}
+          </>
         )}
         {data.type === 'disc' && (
           <mesh position={[0, 0.06, 0]} castShadow>
@@ -293,7 +327,7 @@ function FigureMesh({
         )}
       </group>
       {label ? (
-        <Html position={[0, data.type === 'tall' ? 2.1 : data.type === 'medium' ? 1.6 : 1.2, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
+        <Html position={[0, labelY, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
           <div style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}>{label}</div>
         </Html>
       ) : null}
