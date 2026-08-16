@@ -1,14 +1,59 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1a1a1a;
+  font-family: system-ui, sans-serif;
+  background: #0d1b2a;
   color: #eee;
+}
+
+button:hover { filter: brightness(1.15); }
+button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+input:focus, select:focus { outline: 1px solid #4a90a4; }
+
+/* Sidebar: never collapse below usable width; scroll when tall */
+.app-sidebar {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  min-width: 220px !important;
+  width: 270px;
+  max-width: min(270px, 42vw);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Narrow desktop / tablet: keep sidebar readable */
+@media (max-width: 900px) {
+  .app-sidebar {
+    width: 240px !important;
+    min-width: 200px !important;
+    max-width: min(240px, 46vw) !important;
+    padding: 12px !important;
+    font-size: 13px !important;
+    gap: 10px !important;
+  }
+}
+
+/* Very narrow: still show sidebar with scroll, never squeeze to zero */
+@media (max-width: 640px) {
+  .app-sidebar {
+    width: 200px !important;
+    min-width: 180px !important;
+    max-width: 48vw !important;
+    padding: 10px !important;
+    font-size: 12px !important;
+    gap: 8px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-sidebar {
+    width: 168px !important;
+    min-width: 160px !important;
+    max-width: 52vw !important;
+    padding: 8px !important;
+  }
 }
