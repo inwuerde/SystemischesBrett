@@ -425,8 +425,29 @@ export default function App() {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', background: '#0d1b2a' }}>
-      <div style={{ width: 270, background: '#15202b', borderRight: '1px solid #2a3a4a', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, color: '#e0e6ed', fontSize: 14, overflowY: 'auto' }}>
+    <div data-testid="app-root" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', background: '#0d1b2a', overflow: 'hidden' }}>
+      <aside
+        data-testid="sidebar"
+        className="app-sidebar"
+        style={{
+          width: 270,
+          minWidth: 220,
+          maxWidth: 'min(270px, 42vw)',
+          flex: '0 0 auto',
+          flexShrink: 0,
+          background: '#15202b',
+          borderRight: '1px solid #2a3a4a',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          color: '#e0e6ed',
+          fontSize: 14,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          boxSizing: 'border-box',
+        }}
+      >
         <div>
           <strong style={{ fontSize: 16 }}>SystemischesBrett</strong>
           <div style={{ opacity: 0.7, fontSize: 12, marginTop: 2 }}>Holzfiguren · Schlangenlinie</div>
@@ -518,8 +539,8 @@ export default function App() {
           <button onClick={clearBoard} style={{ ...btnStyle, background: '#3a2a1a' }}>Brett leeren</button>
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
-      </div>
-      <div style={{ flex: 1, position: 'relative' }}>
+      </aside>
+      <div data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, position: 'relative' }}>
         <Canvas shadows camera={{ position: [6, 5, 7], fov: 42 }} style={{ background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)' }} onPointerMissed={() => handleSelect(null)}>
           <Suspense fallback={null}>
             <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} />
