@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:zoom": "playwright test e2e/zoom.spec.ts e2e/zoom-unit.spec.ts"
+    "test:e2e:zoom": "playwright test e2e/zoom.spec.ts e2e/zoom-unit.spec.ts",
+    "test:e2e:responsive": "playwright test e2e/responsive.spec.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
