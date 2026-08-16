@@ -289,29 +289,51 @@ function FocusRing({ type, onPedestal }: { type: FigureType; onPedestal: boolean
   )
 }
 
+function Eyes({
+  left,
+  right,
+  radius,
+}: {
+  left: [number, number, number]
+  right: [number, number, number]
+  radius: number
+}) {
+  return (
+    <>
+      {[left, right].map((p, i) => (
+        <mesh key={i} position={p}>
+          <sphereGeometry args={[radius, 12, 12]} />
+          <meshStandardMaterial color="#1a1a1a" roughness={0.35} metalness={0} />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
 function PegDoll({ height, color }: { height: number; color: string }) {
   const headR = height * 0.22
   const bodyH = height * 0.55
   const bodyR = height * 0.18
   const neckY = bodyH + headR * 0.3
+  const headY = neckY + headR * 0.7
+  const eyeX = headR * 0.32
+  const eyeYOff = headR * 0.1
+  const eyeZ = Math.sqrt(Math.max(0, headR * headR - eyeX * eyeX - eyeYOff * eyeYOff)) + headR * 0.04
   return (
     <group>
       <mesh position={[0, bodyH / 2, 0]} castShadow>
         <cylinderGeometry args={[bodyR * 0.85, bodyR * 1.05, bodyH, 16]} />
         {woodMat(color)}
       </mesh>
-      <mesh position={[0, neckY + headR * 0.7, 0]} castShadow>
+      <mesh position={[0, headY, 0]} castShadow>
         <sphereGeometry args={[headR, 20, 20]} />
         {woodMat(color)}
       </mesh>
-      <mesh position={[-headR * 0.35, neckY + headR * 0.85, headR * 0.75]}>
-        <sphereGeometry args={[headR * 0.12, 8, 8]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
-      <mesh position={[headR * 0.35, neckY + headR * 0.85, headR * 0.75]}>
-        <sphereGeometry args={[headR * 0.12, 8, 8]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
+      <Eyes
+        left={[-eyeX, headY + eyeYOff, eyeZ]}
+        right={[eyeX, headY + eyeYOff, eyeZ]}
+        radius={headR * 0.13}
+      />
     </group>
   )
 }
