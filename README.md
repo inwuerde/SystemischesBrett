@@ -17,7 +17,7 @@ Kurze Clips der Grundfunktionen (Aufnahmen der laufenden App, angelehnt an die A
 | [Fokus und Podest](docs/videos/03-fokus-und-podest.mp4) | Anklicken, heller Ring, Würfel als Podest |
 | [Spielfeld trennen](docs/videos/04-spielfeld-trennen.mp4) | Hälften entlang der Schlange öffnen und schließen |
 | [Kamera](docs/videos/05-kamera.mp4) | Presets Iso, Oben, Seite, Front |
-| [Speichern und laden](docs/videos/06-speichern-laden.mp4) | Speichern unter, Version, laden |
+| [Speichern und laden](docs/videos/06-speichern-laden.mp4) | Speicher im Browser, Version, laden |
 | [Zoom App](docs/videos/07-zoom-app.mp4) | Demo-Meeting, teilen, synchronisieren |
 
 Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run dev` und `node scripts/record-docs-videos.mjs`.
@@ -43,16 +43,16 @@ Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run
 | + Mittlere Figur | mittlere Holzfigur |
 | + Kleine Figur | kleine Holzfigur |
 | + Würfel | Holzwürfel |
-| + Scheibe | flacher Holzteller (liegt auf der Fläche) |
+| + Scheibe | flacher Holzteller, halb so hoch wie der Würfel, liegt vollständig auf dem Brett |
 
 <video src="docs/videos/02-figuren-platzieren.mp4" controls muted playsinline width="720"></video>
 
 - Figuren **ziehen** (auf dem Brett verschieben) und **anklicken** (Fokus setzen).
 - Zwei **schwarze Augenpunkte** geben den Holzfiguren eine Blickrichtung; **Drehen** ändert den Blick.
-- Die fokussierte Figur zeigt einen **gedämpften Ring um die Basis** (hinter der Figur auf dem Brett). Dasselbe gilt für den Würfel.
+- Die fokussierte Figur zeigt einen **gedämpften Ring um die Basis** (auf der Brettoberfläche, hinter der Figur). Holzfiguren: rund. Würfel: **quadratischer Rahmen** mit gleichem Abstand.
 - **Label** setzen, mit Enter oder Verlassen des Feldes übernehmen; erscheint als Namensschild über der Figur.
 - **Holzton** aus acht Farbtönen wählen.
-- **Auf Podest** gilt nur für die fokussierte Figur und stellt sie auf einen **Holzwürfel**.
+- **Auf Podest** gilt nur für die fokussierte Figur und stellt sie auf einen **Holzwürfel**. Die Scheibe liegt dann direkt auf dem Block, nicht darüber.
 
 <video src="docs/videos/03-fokus-und-podest.mp4" controls muted playsinline width="720"></video>
 
@@ -72,16 +72,19 @@ Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run
 - **Undo** / **Redo** für Figurenänderungen (bis zu 40 Schritte).
 - Der letzte Stand wird automatisch im Browser gehalten und nach Reload wiederhergestellt.
 
-### Speichern unter und Versionierung
+### Speicher im Browser und Datei
 
-Alles lokal im Browser (`localStorage`), ohne Server.
+Zwei getrennte Wege: im Browser (localStorage, gerätegebunden) oder als Datei auf dem Rechner.
 
 <video src="docs/videos/06-speichern-laden.mp4" controls muted playsinline width="720"></video>
 
-- **Speichern unter**: Name eingeben, Stand anlegen (startet bei Version 1). Auch per Enter im Namensfeld.
-- **Neue Version**: weiteren Stand unter demselben Namen speichern (v2, v3, …).
+- **Speicher im Browser**: Name eingeben, Stand im Browser anlegen (startet bei Version 1). Auch per Enter im Namensfeld.
+- **Neue Version**: weiteren Stand unter demselben Namen im Browser speichern (v2, v3, …).
 - **Gespeicherte Dateien**: Liste nach Name und Version; **Laden** stellt den Stand wieder her, **Löschen** entfernt ihn.
 - Ohne Namen erscheint ein Hinweis; gleiche Bezeichnung erzeugt automatisch die nächste Versionsnummer.
+- Der letzte Stand wird zusätzlich automatisch im Browser gehalten und nach Reload wiederhergestellt.
+- **Als Datei speichern** schreibt den aktuellen Stand (Figuren, Name, Trennung) als `.sbrett.json` auf den Rechner.
+- **Aus Datei laden** öffnet eine `.sbrett.json` / `.json` und setzt das Brett darauf. So lassen sich Aufstellungen weitergeben oder sichern.
 
 ### Zoom App
 

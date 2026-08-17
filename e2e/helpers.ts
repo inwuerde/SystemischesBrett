@@ -49,7 +49,7 @@ export async function addFigure(page: Page, type: 'tall' | 'medium' | 'small' | 
 
 export async function saveUnder(page: Page, name: string) {
   await page.getByPlaceholder('Dateiname / Bezeichnung…').fill(name)
-  await page.getByRole('button', { name: '💾 Speichern unter' }).click()
+  await page.getByRole('button', { name: '💾 Speicher im Browser' }).click()
 }
 
 /** Select a saved board option by name substring. */

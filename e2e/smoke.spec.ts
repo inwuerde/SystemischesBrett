@@ -18,7 +18,7 @@ test('Smoke: leeren → Figur → Label → speichern → laden → löschen', a
   await labelInput.press('Enter')
   await expect(labelInput).toHaveValue('Klient')
 
-  // 3. Speichern unter
+  // 3. Speicher im Browser
   const name = `Smoke-${Date.now()}`
   await saveUnder(page, name)
   await expect.poll(() => messages.some((m) => m.includes(name))).toBeTruthy()
