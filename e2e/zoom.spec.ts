@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openApp, attachDialogHandler } from './helpers'
+import { clearBoard } from './helpers'
 
 /**
  * Zoom App mode is simulated via ?zoom=1 (see src/zoom/zoomClient.ts).
@@ -10,7 +10,7 @@ test.describe('Zoom App – Standalone', () => {
   test('zeigt Standalone-Status ohne Zoom-Buttons', async ({ page }) => {
     await page.goto('/?zoom=0')
     await page.evaluate(() => {
-      ;['systemisches-brett-saves-v2', 'systemisches-brett-last-v1'].forEach((k) =>
+      ;['systemisches-brett-saves-v2', 'systemisches-brett-last-v2', 'systemisches-brett-last-v1'].forEach((k) =>
         localStorage.removeItem(k)
       )
     })
@@ -29,7 +29,7 @@ test.describe('Zoom App – Simulated in-meeting', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?zoom=1')
     await page.evaluate(() => {
-      ;['systemisches-brett-saves-v2', 'systemisches-brett-last-v1'].forEach((k) =>
+      ;['systemisches-brett-saves-v2', 'systemisches-brett-last-v2', 'systemisches-brett-last-v1'].forEach((k) =>
         localStorage.removeItem(k)
       )
     })
@@ -59,8 +59,7 @@ test.describe('Zoom App – Simulated in-meeting', () => {
   })
 
   test('Brett-Funktionen bleiben in Zoom-Modus nutzbar', async ({ page }) => {
-    attachDialogHandler(page)
-    await page.getByRole('button', { name: 'Brett leeren' }).click()
+    await clearBoard(page)
     await page.getByRole('button', { name: '+ Große Figur' }).click()
     await expect(page.getByText('Ausgewählt')).toBeVisible()
     await page.getByTestId('zoom-sync').click()

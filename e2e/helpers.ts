@@ -16,6 +16,7 @@ export async function clearAppStorage(page: Page) {
     const keys = [
       'systemisches-brett-saves-v2',
       'systemisches-brett-saves-v1',
+      'systemisches-brett-last-v2',
       'systemisches-brett-last-v1',
       'systemisches-brett-v2',
       'systemisches-brett-v1',
@@ -32,6 +33,24 @@ export async function openApp(page: Page) {
   await expect(page.getByText('SystemischesBrett')).toBeVisible()
   // WebGL canvas should be present
   await expect(page.locator('canvas')).toBeVisible({ timeout: 15_000 })
+}
+
+export async function expectNotice(page: Page, text: string | RegExp) {
+  const notice = page.getByTestId('notice')
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText(text)
+}
+
+/** Empty the board, confirming the two-step prompt when figures exist. */
+export async function clearBoard(page: Page) {
+  const clearBtn = page.getByRole('button', { name: 'Brett leeren' })
+  if (await clearBtn.isVisible()) {
+    await clearBtn.click()
+  }
+  const confirm = page.getByRole('button', { name: 'Wirklich leeren' })
+  if (await confirm.isVisible()) {
+    await confirm.click()
+  }
 }
 
 export async function addFigure(page: Page, type: 'tall' | 'medium' | 'small' | 'cube' | 'disc') {

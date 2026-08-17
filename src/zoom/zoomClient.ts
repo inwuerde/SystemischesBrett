@@ -20,6 +20,16 @@ const ZOOM_CAPABILITIES = [
 
 export type BoardSyncHandler = (payload: BoardSyncPayload) => void
 
+function makeSenderId() {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+}
+
+const SESSION_SENDER_ID = makeSenderId()
+
 type ZoomSdkLike = {
   config: (opts: {
     version?: string
@@ -45,7 +55,7 @@ type ZoomSdkLike = {
   shareApp?: (opts?: { action?: string }) => Promise<unknown>
   postMessage?: (payload: unknown) => Promise<unknown>
   onMessage?: (cb: (ev: { payload?: unknown }) => void) => void
-  expandApp?: () => Promise<unknown>
+  expandApp?: (opts?: unknown) => Promise<unknown>
   openUrl?: (opts: { url: string }) => Promise<unknown>
   getSupportedJsApis?: () => Promise<{ supportedApis?: string[] } | string[]>
 }
@@ -87,7 +97,7 @@ const defaultStatus = (): ZoomAppStatus => ({
 export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
   status: ZoomAppStatus
   shareApp: () => Promise<void>
-  broadcastBoard: (figures: FigureData[]) => Promise<void>
+  broadcastBoard: (figures: FigureData[], split?: boolean) => Promise<void>
   expandApp: () => Promise<void>
   openUrl: (url: string) => Promise<void>
 }> {
@@ -100,7 +110,7 @@ export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
 
   const helpers = {
     shareApp: noop,
-    broadcastBoard: async (_figures: FigureData[]) => {
+    broadcastBoard: async (_figures: FigureData[], _split?: boolean) => {
       /* standalone – no peers */
     },
     expandApp: noop,
@@ -127,8 +137,8 @@ export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
     helpers.shareApp = async () => {
       console.info('[zoom-demo] shareApp()')
     }
-    helpers.broadcastBoard = async (figures) => {
-      console.info('[zoom-demo] broadcastBoard', figures.length)
+    helpers.broadcastBoard = async (figures, split) => {
+      console.info('[zoom-demo] broadcastBoard', figures.length, split ? 'split' : 'joined')
     }
     helpers.expandApp = async () => {
       console.info('[zoom-demo] expandApp()')
@@ -203,11 +213,13 @@ export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
       }
     }
 
-    helpers.broadcastBoard = async (figures: FigureData[]) => {
+    helpers.broadcastBoard = async (figures: FigureData[], split?: boolean) => {
       if (!sdk?.postMessage) return
       const payload: BoardSyncPayload = {
         type: 'board-sync',
         figures: JSON.parse(JSON.stringify(figures)),
+        split: !!split,
+        senderId: SESSION_SENDER_ID,
         ts: Date.now(),
       }
       await sdk.postMessage(payload)
@@ -218,6 +230,7 @@ export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
         const raw = ev?.payload
         if (!raw || typeof raw !== 'object') return
         const p = raw as BoardSyncPayload
+        if (p.senderId && p.senderId === SESSION_SENDER_ID) return
         if (p.type === 'board-sync' && Array.isArray(p.figures)) {
           onBoardSync(p)
         }
