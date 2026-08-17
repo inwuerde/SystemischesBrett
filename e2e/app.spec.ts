@@ -32,10 +32,10 @@ test.describe('SystemischesBrett – App Shell', () => {
     }
   })
 
-  test('zeigt Speichern-unter Bereich', async ({ page }) => {
-    await expect(page.getByText('Speichern unter', { exact: true })).toBeVisible()
+  test('zeigt Speicher-im-Browser Bereich', async ({ page }) => {
+    await expect(page.getByText('Speicher im Browser', { exact: true })).toBeVisible()
     await expect(page.getByPlaceholder('Dateiname / Bezeichnung…')).toBeVisible()
-    await expect(page.getByRole('button', { name: '💾 Speichern unter' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '💾 Speicher im Browser' })).toBeVisible()
     await expect(page.getByRole('button', { name: '📄 Neue Version' })).toBeVisible()
     await expect(page.getByText('Gespeicherte Dateien (Versionen)')).toBeVisible()
     await expect(page.getByRole('button', { name: '📂 Laden' })).toBeDisabled()
@@ -156,20 +156,20 @@ test.describe('SystemischesBrett – Kamera & History', () => {
   })
 })
 
-test.describe('SystemischesBrett – Speichern unter & Versionierung', () => {
+test.describe('SystemischesBrett – Speicher im Browser & Versionierung', () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page)
   })
 
-  test('Speichern unter ohne Namen zeigt Alert', async ({ page }) => {
+  test('Speicher im Browser ohne Namen zeigt Alert', async ({ page }) => {
     const { messages } = attachDialogHandler(page)
     await page.getByPlaceholder('Dateiname / Bezeichnung…').fill('')
-    await page.getByRole('button', { name: '💾 Speichern unter' }).click()
+    await page.getByRole('button', { name: '💾 Speicher im Browser' }).click()
     await expect.poll(() => messages.length).toBeGreaterThan(0)
     expect(messages.some((m) => m.includes('Namen'))).toBeTruthy()
   })
 
-  test('Speichern unter mit Namen legt Version 1 an', async ({ page }) => {
+  test('Speicher im Browser mit Namen legt Version 1 an', async ({ page }) => {
     const { messages } = attachDialogHandler(page)
     const name = `E2E-Test-${Date.now()}`
     await saveUnder(page, name)
@@ -233,7 +233,38 @@ test.describe('SystemischesBrett – Speichern unter & Versionierung', () => {
     await expect(page.locator('select').locator('option', { hasText: name })).toHaveCount(0)
   })
 
-  test('Speichern unter per Enter-Taste', async ({ page }) => {
+  test('Als Datei speichern lädt eine JSON-Datei herunter', async ({ page }) => {
+    await page.getByRole('button', { name: 'Brett leeren' }).click()
+    await addFigure(page, 'tall')
+    await page.getByPlaceholder('Dateiname / Bezeichnung…').fill('DateiExport')
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByTestId('save-file').click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toMatch(/DateiExport\.sbrett\.json/)
+  })
+
+  test('Aus Datei laden stellt Figuren wieder her', async ({ page }) => {
+    await page.getByRole('button', { name: 'Brett leeren' }).click()
+    const payload = {
+      format: 'systemisches-brett',
+      formatVersion: 1,
+      name: 'DateiImport',
+      savedAt: new Date().toISOString(),
+      split: false,
+      figures: [
+        { id: 'file-1', position: [1, 0, 1], rotationY: 0, color: '#e8d4b0', label: 'Import', type: 'medium' },
+      ],
+    }
+    await page.getByTestId('file-load-input').setInputFiles({
+      name: 'import.sbrett.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(payload)),
+    })
+    await expect(page.getByPlaceholder('Dateiname / Bezeichnung…')).toHaveValue('DateiImport')
+    await expect(page.locator('canvas')).toBeVisible()
+  })
+
+  test('Speicher im Browser per Enter-Taste', async ({ page }) => {
     const { messages } = attachDialogHandler(page)
     const name = `Enter-${Date.now()}`
     await page.getByPlaceholder('Dateiname / Bezeichnung…').fill(name)

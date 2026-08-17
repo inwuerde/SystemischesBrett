@@ -18,8 +18,11 @@ export type FigureData = {
 }
 
 const WOOD_TONES = ['#e8d4b0', '#d4b896', '#c9a66b', '#b8956a', '#a67c52', '#8b6914', '#d2b48c', '#c4a35a']
+const FIGURE_TYPES: FigureType[] = ['tall', 'medium', 'small', 'cube', 'disc', 'block']
 const SAVES_KEY = 'systemisches-brett-saves-v2'
 const LAST_KEY = 'systemisches-brett-last-v1'
+const FILE_FORMAT = 'systemisches-brett'
+const FILE_FORMAT_VERSION = 1
 
 const BOARD_SIZE = 11
 const BOARD_HALF = BOARD_SIZE / 2
@@ -116,6 +119,52 @@ function nextVersionForName(saves: SavedBoard[], name: string): number {
   const same = saves.filter((s) => s.name.toLowerCase() === name.toLowerCase())
   if (same.length === 0) return 1
   return Math.max(...same.map((s) => s.version)) + 1
+}
+
+function normalizeFigure(f: Partial<FigureData>): FigureData | null {
+  if (!f || !Array.isArray(f.position) || f.position.length < 3) return null
+  return {
+    id: typeof f.id === 'string' && f.id ? f.id : crypto.randomUUID().slice(0, 8),
+    position: [Number(f.position[0]) || 0, Number(f.position[1]) || 0, Number(f.position[2]) || 0],
+    rotationY: typeof f.rotationY === 'number' ? f.rotationY : 0,
+    color: typeof f.color === 'string' ? f.color : WOOD_TONES[0],
+    label: (f.label || '').trim(),
+    type: FIGURE_TYPES.includes(f.type as FigureType) ? (f.type as FigureType) : 'tall',
+    onBlock: !!f.onBlock,
+  }
+}
+
+function fileSafeName(name: string) {
+  const cleaned = name.trim().replace(/[^\w\-äöüÄÖÜß ]+/g, '').replace(/\s+/g, '-')
+  return cleaned || 'Aufstellung'
+}
+
+type BoardFile = {
+  format: typeof FILE_FORMAT
+  formatVersion: number
+  name: string
+  savedAt: string
+  split: boolean
+  figures: FigureData[]
+}
+
+function parseBoardFile(raw: string): { figures: FigureData[]; name?: string; split?: boolean } {
+  const data = JSON.parse(raw) as unknown
+  if (Array.isArray(data)) {
+    const figures = data.map((f) => normalizeFigure(f as Partial<FigureData>)).filter((f): f is FigureData => !!f)
+    if (figures.length === 0 && data.length > 0) throw new Error('empty')
+    return { figures }
+  }
+  if (data && typeof data === 'object' && Array.isArray((data as { figures?: unknown }).figures)) {
+    const obj = data as { figures: Partial<FigureData>[]; name?: string; split?: boolean }
+    const figures = obj.figures.map((f) => normalizeFigure(f)).filter((f): f is FigureData => !!f)
+    return {
+      figures,
+      name: typeof obj.name === 'string' ? obj.name : undefined,
+      split: typeof obj.split === 'boolean' ? obj.split : undefined,
+    }
+  }
+  throw new Error('unrecognized')
 }
 
 const initialFigures: FigureData[] = [
@@ -375,8 +424,8 @@ function FigureMesh({
           </mesh>
         )}
         {data.type === 'disc' && (
-          <mesh position={[0, 0.06, 0]} castShadow>
-            <cylinderGeometry args={[0.35, 0.35, 0.12, 24]} />
+          <mesh position={[0, (onPedestal ? 0 : BOARD_TOP) + 0.125, 0]} castShadow>
+            <cylinderGeometry args={[0.35, 0.35, 0.25, 24]} />
             {woodMat(data.color, 0.75)}
           </mesh>
         )}
@@ -510,6 +559,7 @@ export default function App() {
   const [cameraPreset, setCameraPreset] = useState<string | null>(null)
   const [split, setSplit] = useState(false)
   const skipHistory = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const applyRemoteBoard = useCallback((figs: FigureData[]) => {
     skipHistory.current = true
@@ -586,7 +636,7 @@ export default function App() {
   const persistLast = (figs: FigureData[]) => localStorage.setItem(LAST_KEY, JSON.stringify(figs))
   const saveNamed = () => {
     const name = saveName.trim()
-    if (!name) { alert('Bitte einen Namen für „Speichern unter“ eingeben.'); return }
+    if (!name) { alert('Bitte einen Namen für „Speicher im Browser“ eingeben.'); return }
     const version = nextVersionForName(saves, name)
     const entry: SavedBoard = { id: crypto.randomUUID().slice(0, 10), name, version, savedAt: new Date().toISOString(), figures: JSON.parse(JSON.stringify(figures)) }
     const next = [entry, ...saves]
@@ -615,6 +665,42 @@ export default function App() {
     if (!selectedSaveId) return
     const next = saves.filter((s) => s.id !== selectedSaveId)
     writeSaves(next); setSaves(next); setSelectedSaveId(next[0]?.id || '')
+  }
+  const saveToFile = () => {
+    const name = saveName.trim() || 'Aufstellung'
+    const payload: BoardFile = {
+      format: FILE_FORMAT,
+      formatVersion: FILE_FORMAT_VERSION,
+      name,
+      savedAt: new Date().toISOString(),
+      split,
+      figures: JSON.parse(JSON.stringify(figures)) as FigureData[],
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${fileSafeName(name)}.sbrett.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  const loadFromFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = parseBoardFile(String(reader.result || ''))
+        skipHistory.current = true
+        setFigures(parsed.figures)
+        setSelectedId(null)
+        persistLast(parsed.figures)
+        if (parsed.name) setSaveName(parsed.name)
+        if (typeof parsed.split === 'boolean') setSplit(parsed.split)
+      } catch {
+        alert('Die Datei ist kein gültiger SystemischesBrett-Stand.')
+      }
+    }
+    reader.onerror = () => alert('Die Datei konnte nicht gelesen werden.')
+    reader.readAsText(file)
   }
 
   return (
@@ -712,9 +798,9 @@ export default function App() {
           <button onClick={redo} disabled={historyIndex >= history.length - 1} style={btnStyle}>Redo ↪</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontWeight: 600, fontSize: 13 }}>Speichern unter</div>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>Speicher im Browser</div>
           <input placeholder="Dateiname / Bezeichnung…" value={saveName} onChange={(e) => setSaveName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveNamed() }} style={inputStyle} />
-          <button onClick={saveNamed} style={btnStyle}>💾 Speichern unter</button>
+          <button onClick={saveNamed} style={btnStyle}>💾 Speicher im Browser</button>
           <button onClick={saveNewVersion} style={btnStyle}>📄 Neue Version</button>
           <div style={{ fontWeight: 600, fontSize: 13, marginTop: 4 }}>Gespeicherte Dateien (Versionen)</div>
           <select value={selectedSaveId} onChange={(e) => { const id = e.target.value; setSelectedSaveId(id); const s = saves.find((x) => x.id === id); if (s) setSaveName(s.name) }} style={{ ...inputStyle, cursor: 'pointer' }}>
@@ -727,6 +813,21 @@ export default function App() {
             <button onClick={loadSelected} style={btnStyle} disabled={!selectedSaveId}>📂 Laden</button>
             <button onClick={deleteSelected} style={{ ...btnStyle, background: '#5c2a2a' }} disabled={!selectedSaveId}>🗑</button>
           </div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginTop: 4 }}>Datei</div>
+          <button data-testid="save-file" onClick={saveToFile} style={btnStyle}>⬇ Als Datei speichern</button>
+          <button data-testid="load-file" onClick={() => fileInputRef.current?.click()} style={btnStyle}>⬆ Aus Datei laden</button>
+          <input
+            ref={fileInputRef}
+            data-testid="file-load-input"
+            type="file"
+            accept=".json,.sbrett.json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) loadFromFile(file)
+            }}
+          />
         </div>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {zoom.status.inZoom && (

@@ -175,7 +175,7 @@ await recordClip('05-kamera', 'Kamera-Presets', async (page, title) => {
   }
 })
 
-await recordClip('06-speichern-laden', 'Speichern unter und laden', async (page, title) => {
+await recordClip('06-speichern-laden', 'Speicher im Browser und laden', async (page, title) => {
   await openApp(page)
   await showTitle(page, title)
   await page.getByRole('button', { name: 'Brett leeren' }).click()
@@ -183,7 +183,7 @@ await recordClip('06-speichern-laden', 'Speichern unter und laden', async (page,
   await setLabel(page, 'Klient')
   await page.getByPlaceholder('Dateiname / Bezeichnung…').fill('Familienaufstellung')
   await wait(page, 500)
-  await page.getByRole('button', { name: '💾 Speichern unter' }).click()
+  await page.getByRole('button', { name: '💾 Speicher im Browser' }).click()
   await wait(page, 700)
   await page.getByRole('button', { name: '📄 Neue Version' }).click()
   await wait(page, 700)

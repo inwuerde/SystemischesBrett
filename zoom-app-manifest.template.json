@@ -2,7 +2,7 @@
   "display_information": {
     "display_name": "SystemischesBrett",
     "description": "3D systemisches Brett für Aufstellungen in Zoom-Meetings",
-    "long_description": "Interaktives 3D-Brett mit Holzfiguren für systemische Aufstellungen. Figuren platzieren, beschriften und mit Meeting-Teilnehmern teilen. Speichern unter mit Versionierung. Ideal für Beratung, Coaching und Therapie in Zoom."
+    "long_description": "Interaktives 3D-Brett mit Holzfiguren für systemische Aufstellungen. Figuren platzieren, beschriften und mit Meeting-Teilnehmern teilen. Speicher im Browser mit Versionierung, Export als Datei. Ideal für Beratung, Coaching und Therapie in Zoom."
   },
   "oauth_information": {
     "usage": "USER_OPERATION",
