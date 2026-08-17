@@ -19,11 +19,11 @@ const initialStatus: ZoomAppStatus = {
  * React hook: Zoom Apps lifecycle + board sync.
  * @param onRemoteBoard called when another instance posts board-sync
  */
-export function useZoomApp(onRemoteBoard?: (figures: FigureData[]) => void): ZoomAppApi {
+export function useZoomApp(onRemoteBoard?: (figures: FigureData[], split?: boolean) => void): ZoomAppApi {
   const [status, setStatus] = useState<ZoomAppStatus>(initialStatus)
   const apiRef = useRef<{
     shareApp: () => Promise<void>
-    broadcastBoard: (figures: FigureData[]) => Promise<void>
+    broadcastBoard: (figures: FigureData[], split?: boolean) => Promise<void>
     expandApp: () => Promise<void>
     openUrl: (url: string) => Promise<void>
   } | null>(null)
@@ -35,7 +35,7 @@ export function useZoomApp(onRemoteBoard?: (figures: FigureData[]) => void): Zoo
     let cancelled = false
     ;(async () => {
       const result = await initZoomApp((payload: BoardSyncPayload) => {
-        onRemoteRef.current?.(payload.figures)
+        onRemoteRef.current?.(payload.figures, payload.split)
       })
       if (cancelled) return
       apiRef.current = {
@@ -55,8 +55,8 @@ export function useZoomApp(onRemoteBoard?: (figures: FigureData[]) => void): Zoo
     await apiRef.current?.shareApp()
   }, [])
 
-  const broadcastBoard = useCallback(async (figures: FigureData[]) => {
-    await apiRef.current?.broadcastBoard(figures)
+  const broadcastBoard = useCallback(async (figures: FigureData[], split?: boolean) => {
+    await apiRef.current?.broadcastBoard(figures, split)
   }, [])
 
   const expandApp = useCallback(async () => {

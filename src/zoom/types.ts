@@ -4,6 +4,7 @@ import type { FigureData } from '../App'
 export type BoardSyncPayload = {
   type: 'board-sync'
   figures: FigureData[]
+  split?: boolean
   senderId?: string
   ts: number
 }
@@ -36,8 +37,8 @@ export type ZoomAppApi = {
   status: ZoomAppStatus
   /** Share the Zoom App view with meeting participants */
   shareApp: () => Promise<void>
-  /** Broadcast current board figures to other app instances */
-  broadcastBoard: (figures: FigureData[]) => Promise<void>
+  /** Broadcast current board figures (and split) to other app instances */
+  broadcastBoard: (figures: FigureData[], split?: boolean) => Promise<void>
   /** Expand the app panel in the Zoom client */
   expandApp: () => Promise<void>
   /** Open external docs / help URL */

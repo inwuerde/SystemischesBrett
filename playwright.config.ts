@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const port = Number(process.env.E2E_PORT || 3000)
+const baseURL = `http://127.0.0.1:${port}`
+
 /**
  * Playwright E2E config for SystemischesBrett
  * @see https://playwright.dev/docs/test-configuration
@@ -17,7 +20,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -30,9 +33,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 3000',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --host 127.0.0.1 --port ${port}`,
+    url: baseURL,
+    reuseExistingServer: !process.env.CI && !process.env.E2E_PORT,
     timeout: 120_000,
   },
 })

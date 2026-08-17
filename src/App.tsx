@@ -20,9 +20,13 @@ export type FigureData = {
 const WOOD_TONES = ['#e8d4b0', '#d4b896', '#c9a66b', '#b8956a', '#a67c52', '#8b6914', '#d2b48c', '#c4a35a']
 const FIGURE_TYPES: FigureType[] = ['tall', 'medium', 'small', 'cube', 'disc', 'block']
 const SAVES_KEY = 'systemisches-brett-saves-v2'
-const LAST_KEY = 'systemisches-brett-last-v1'
+const LAST_KEY = 'systemisches-brett-last-v2'
+const LAST_KEY_LEGACY = 'systemisches-brett-last-v1'
 const FILE_FORMAT = 'systemisches-brett'
 const FILE_FORMAT_VERSION = 1
+const PLACE_MIN_DIST = 0.75
+const DRAG_THRESHOLD_PX = 8
+const NOTICE_MS = 4500
 
 const BOARD_SIZE = 11
 const BOARD_HALF = BOARD_SIZE / 2
@@ -31,6 +35,7 @@ const SNAKE_AMPLITUDE = 0.325
 const SNAKE_SEGMENTS = 96
 /** Brett ≈ 50 cm bei 11 Einheiten → 2 cm Abstand ≈ 0.44 */
 const SPLIT_GAP = 0.44
+const PEDESTAL_SIZE = 0.5
 
 function snakeXAtT(t: number) {
   return Math.sin(t * Math.PI * 2 * SNAKE_WAVES) * SNAKE_AMPLITUDE
@@ -76,6 +81,20 @@ type SavedBoard = {
   version: number
   savedAt: string
   figures: FigureData[]
+  split?: boolean
+}
+
+type BoardSnap = {
+  figures: FigureData[]
+  split: boolean
+}
+
+type NoticeKind = 'info' | 'ok' | 'error'
+
+type Notice = {
+  id: number
+  kind: NoticeKind
+  text: string
 }
 
 function readSaves(): SavedBoard[] {
@@ -91,6 +110,7 @@ function readSaves(): SavedBoard[] {
           version: typeof s.version === 'number' ? s.version : 1,
           savedAt: s.savedAt || new Date().toISOString(),
           figures: s.figures || [],
+          split: typeof s.split === 'boolean' ? s.split : false,
         }))
         localStorage.setItem(SAVES_KEY, JSON.stringify(migrated))
         return migrated
@@ -105,6 +125,7 @@ function readSaves(): SavedBoard[] {
       version: typeof s.version === 'number' ? s.version : 1,
       savedAt: s.savedAt || new Date().toISOString(),
       figures: s.figures || [],
+      split: typeof s.split === 'boolean' ? s.split : false,
     }))
   } catch {
     return []
@@ -132,6 +153,169 @@ function normalizeFigure(f: Partial<FigureData>): FigureData | null {
     type: FIGURE_TYPES.includes(f.type as FigureType) ? (f.type as FigureType) : 'tall',
     onBlock: !!f.onBlock,
   }
+}
+
+function normalizeFigures(list: unknown): FigureData[] {
+  if (!Array.isArray(list)) return []
+  return list.map((f) => normalizeFigure(f as Partial<FigureData>)).filter((f): f is FigureData => !!f)
+}
+
+function readLastBoard(): BoardSnap | null {
+  try {
+    const raw = localStorage.getItem(LAST_KEY) || localStorage.getItem(LAST_KEY_LEGACY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) {
+      return { figures: normalizeFigures(parsed), split: false }
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { figures?: unknown }).figures)) {
+      const obj = parsed as { figures: unknown; split?: unknown }
+      return {
+        figures: normalizeFigures(obj.figures),
+        split: obj.split === true,
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function writeLastBoard(figures: FigureData[], split: boolean) {
+  const payload: BoardSnap = { figures, split }
+  localStorage.setItem(LAST_KEY, JSON.stringify(payload))
+}
+
+function labelAnchorY(type: FigureType, onBlock: boolean) {
+  const blockH = onBlock ? PEDESTAL_SIZE : 0
+  return (type === 'tall' ? 2.1 : type === 'medium' ? 1.6 : 1.2) + blockH
+}
+
+function fillRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, rr)
+  } else {
+    ctx.moveTo(x + rr, y)
+    ctx.arcTo(x + w, y, x + w, y + h, rr)
+    ctx.arcTo(x + w, y + h, x, y + h, rr)
+    ctx.arcTo(x, y + h, x, y, rr)
+    ctx.arcTo(x, y, x + w, y, rr)
+    ctx.closePath()
+  }
+}
+
+function paintLabelBadge(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  cx: number,
+  cy: number,
+  scale: number,
+  selected: boolean,
+) {
+  const fontPx = Math.max(10, 12 * scale)
+  ctx.font = `${fontPx}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const padX = 8 * scale
+  const padY = 2 * scale
+  const tw = ctx.measureText(text).width
+  const bw = tw + padX * 2
+  const bh = fontPx + padY * 2
+  const x = cx - bw / 2
+  const y = cy - bh / 2
+  fillRoundRect(ctx, x, y, bw, bh, 4 * scale)
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'
+  ctx.fill()
+  if (selected) {
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = Math.max(1, scale)
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#fff'
+  ctx.fillText(text, cx, cy)
+}
+
+/** WebGL canvas + HTML nameplates (Drei Html is not part of the GL buffer). */
+function composeBoardPng(
+  pane: HTMLElement,
+  source: HTMLCanvasElement,
+  camera: THREE.Camera | null,
+  figures: FigureData[],
+  split: boolean,
+  selectedId: string | null,
+): string | null {
+  if (!source.width || !source.height) return null
+  const out = document.createElement('canvas')
+  out.width = source.width
+  out.height = source.height
+  const ctx = out.getContext('2d')
+  if (!ctx) return null
+  ctx.drawImage(source, 0, 0)
+
+  const srcRect = source.getBoundingClientRect()
+  const sx = srcRect.width > 0 ? out.width / srcRect.width : 1
+  const sy = srcRect.height > 0 ? out.height / srcRect.height : sx
+  const scale = (sx + sy) / 2
+
+  let badges = pane.querySelectorAll<HTMLElement>('[data-figure-label]')
+  if (badges.length === 0) badges = document.querySelectorAll<HTMLElement>('[data-figure-label]')
+  if (badges.length > 0) {
+    badges.forEach((el) => {
+      const text = (el.dataset.figureLabel || el.textContent || '').trim()
+      if (!text) return
+      const r = el.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) return
+      if (r.right < srcRect.left || r.left > srcRect.right || r.bottom < srcRect.top || r.top > srcRect.bottom) return
+      const cx = (r.left + r.width / 2 - srcRect.left) * sx
+      const cy = (r.top + r.height / 2 - srcRect.top) * sy
+      paintLabelBadge(ctx, text, cx, cy, scale, el.dataset.selected === 'true')
+    })
+  } else if (camera) {
+    for (const f of figures) {
+      const text = (f.label || '').trim()
+      if (!text) continue
+      const offsetX = split ? figureSplitSign(f.position) * (SPLIT_GAP / 2) : 0
+      const world = new THREE.Vector3(
+        f.position[0] + offsetX,
+        f.position[1] + labelAnchorY(f.type, !!f.onBlock),
+        f.position[2],
+      )
+      const ndc = world.project(camera)
+      if (ndc.z < -1 || ndc.z > 1) continue
+      const cx = (ndc.x * 0.5 + 0.5) * out.width
+      const cy = (-ndc.y * 0.5 + 0.5) * out.height
+      paintLabelBadge(ctx, text, cx, cy, scale, selectedId === f.id)
+    }
+  }
+
+  const url = out.toDataURL('image/png')
+  return !url || url === 'data:,' ? null : url
+}
+
+function findFreePosition(existing: FigureData[]): [number, number, number] {
+  const margin = 0.45
+  const spots: [number, number][] = [[0, 0]]
+  for (let ring = 1; ring <= 10; ring++) {
+    const count = ring * 6
+    const radius = ring * PLACE_MIN_DIST
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2
+      spots.push([Math.cos(a) * radius, Math.sin(a) * radius])
+    }
+  }
+  const minDistSq = PLACE_MIN_DIST * PLACE_MIN_DIST
+  for (const [x, z] of spots) {
+    if (Math.abs(x) > BOARD_HALF - margin || Math.abs(z) > BOARD_HALF - margin) continue
+    const taken = existing.some((f) => {
+      const dx = f.position[0] - x
+      const dz = f.position[2] - z
+      return dx * dx + dz * dz < minDistSq
+    })
+    if (!taken) return [x, 0, z]
+  }
+  return [0, 0, 0]
 }
 
 function fileSafeName(name: string) {
@@ -179,6 +363,10 @@ const initialFigures: FigureData[] = [
   { id: '9', position: [-1.5, 0, 1.8], rotationY: 0, color: '#a67c52', label: '', type: 'disc' },
   { id: '10', position: [-4.5, 0, 3.5], rotationY: 0, color: '#c4a35a', label: '', type: 'cube' },
 ]
+
+function readInitialBoard(): BoardSnap {
+  return readLastBoard() ?? { figures: initialFigures, split: false }
+}
 
 function woodMat(color: string, roughness = 0.75) {
   return <meshStandardMaterial color={color} roughness={roughness} metalness={0.05} />
@@ -265,7 +453,6 @@ function Board({ split, onPointerDown }: { split: boolean; onPointerDown?: () =>
 const BOARD_TOP = 0.12
 const FOCUS_Y = BOARD_TOP + 0.008
 const FOCUS_COLOR = '#d8c48a'
-const PEDESTAL_SIZE = 0.5
 /** Abstand Figurkante → Innenkante des Rings (wie bei der großen Holzfigur). */
 const FOCUS_GAP = 0.038
 const FOCUS_THICKNESS = 0.10
@@ -400,7 +587,7 @@ function FigureMesh({
   const blockH = onPedestal ? PEDESTAL_SIZE : 0
   const label = (data.label || '').trim()
   const offsetX = split ? figureSplitSign(data.position) * (SPLIT_GAP / 2) : 0
-  const labelY = (data.type === 'tall' ? 2.1 : data.type === 'medium' ? 1.6 : 1.2) + blockH
+  const labelY = labelAnchorY(data.type, onPedestal)
   return (
     <group position={[data.position[0] + offsetX, data.position[1], data.position[2]]} rotation={[0, data.rotationY, 0]}
       onClick={(e) => { e.stopPropagation(); onSelect(data.id) }}
@@ -438,7 +625,13 @@ function FigureMesh({
       </group>
       {label ? (
         <Html position={[0, labelY, 0]} center distanceFactor={8} style={{ pointerEvents: 'none' }}>
-          <div style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}>{label}</div>
+          <div
+            data-figure-label={label}
+            data-selected={selected ? 'true' : 'false'}
+            style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}
+          >
+            {label}
+          </div>
         </Html>
       ) : null}
     </group>
@@ -465,7 +658,7 @@ function CameraController({ preset }: { preset: string | null }) {
 }
 
 function Scene({
-  figures, selectedId, onSelect, onMove, dragging, setDragging, cameraPreset, split,
+  figures, selectedId, onSelect, onMove, dragging, setDragging, cameraPreset, split, cameraRef,
 }: {
   figures: FigureData[]
   selectedId: string | null
@@ -475,11 +668,19 @@ function Scene({
   setDragging: (id: string | null) => void
   cameraPreset: string | null
   split: boolean
+  cameraRef: { current: THREE.Camera | null }
 }) {
   const { camera, gl } = useThree()
+  cameraRef.current = camera
   const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
   const raycaster = useRef(new THREE.Raycaster())
   const pointer = useRef(new THREE.Vector2())
+  const controlsRef = useRef<{ enabled: boolean } | null>(null)
+  const dragStartRef = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null)
+  const setOrbitEnabled = useCallback((enabled: boolean) => {
+    const controls = controlsRef.current
+    if (controls) controls.enabled = enabled
+  }, [])
   const getBoardPoint = useCallback((clientX: number, clientY: number) => {
     const rect = gl.domElement.getBoundingClientRect()
     pointer.current.x = ((clientX - rect.left) / rect.width) * 2 - 1
@@ -500,22 +701,42 @@ function Scene({
   }, [camera, gl, split])
   const handleDragStart = (id: string, e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation?.()
+    e.nativeEvent.preventDefault?.()
+    setOrbitEnabled(false)
+    try {
+      gl.domElement.setPointerCapture(e.pointerId)
+    } catch {
+      /* capture optional */
+    }
+    dragStartRef.current = { id, x: e.clientX, y: e.clientY, moved: false }
     setDragging(id)
     onSelect(id)
   }
   const onPointerMove = useCallback((e: PointerEvent) => {
-    if (!dragging) return
+    const start = dragStartRef.current
+    if (!start || !dragging) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (!start.moved && dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return
+    start.moved = true
     const pos = getBoardPoint(e.clientX, e.clientY)
-    if (pos) onMove(dragging, pos)
+    if (pos) onMove(start.id, pos)
   }, [dragging, getBoardPoint, onMove])
-  const onPointerUp = useCallback(() => setDragging(null), [setDragging])
+  const onPointerUp = useCallback(() => {
+    dragStartRef.current = null
+    setOrbitEnabled(true)
+    setDragging(null)
+  }, [setDragging, setOrbitEnabled])
   useEffect(() => {
     if (!dragging) return
-    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointermove', onPointerMove, { passive: false })
     window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
     return () => {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
     }
   }, [dragging, onPointerMove, onPointerUp])
   return (
@@ -527,44 +748,59 @@ function Scene({
       {figures.map((f) => (
         <FigureMesh key={f.id} data={f} selected={selectedId === f.id} onSelect={onSelect} onDragStart={handleDragStart} split={split} />
       ))}
-      <OrbitControls makeDefault enabled={!dragging} minDistance={3} maxDistance={22} maxPolarAngle={Math.PI / 2.05} />
+      <OrbitControls
+        ref={controlsRef as never}
+        makeDefault
+        enabled={!dragging}
+        enableRotate={!dragging}
+        enablePan={!dragging}
+        minDistance={3}
+        maxDistance={22}
+        maxPolarAngle={Math.PI / 2.05}
+      />
       <CameraController preset={cameraPreset} />
     </>
   )
 }
 
 export default function App() {
-  const [figures, setFigures] = useState<FigureData[]>(() => {
-    try {
-      const raw = localStorage.getItem(LAST_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as FigureData[]
-        return parsed.map((f) => ({
-          ...f,
-          label: (f.label || '').trim(),
-          type: (['tall', 'medium', 'small', 'cube', 'disc', 'block'].includes(f.type as string) ? f.type : 'tall') as FigureType,
-        }))
-      }
-    } catch {}
-    return initialFigures
-  })
+  const [figures, setFigures] = useState<FigureData[]>(() => readInitialBoard().figures)
   const [saves, setSaves] = useState<SavedBoard[]>(() => readSaves())
   const [saveName, setSaveName] = useState('')
   const [selectedSaveId, setSelectedSaveId] = useState<string>('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [labelInput, setLabelInput] = useState('')
-  const [history, setHistory] = useState<FigureData[][]>([initialFigures])
+  const [history, setHistory] = useState<BoardSnap[]>(() => {
+    const boot = readInitialBoard()
+    return [{ figures: boot.figures, split: boot.split }]
+  })
   const [historyIndex, setHistoryIndex] = useState(0)
   const [cameraPreset, setCameraPreset] = useState<string | null>(null)
-  const [split, setSplit] = useState(false)
-  const skipHistory = useRef(false)
+  const [split, setSplit] = useState(() => readInitialBoard().split)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const skipHistory = useRef(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasPaneRef = useRef<HTMLDivElement>(null)
+  const cameraRef = useRef<THREE.Camera | null>(null)
 
-  const applyRemoteBoard = useCallback((figs: FigureData[]) => {
+  const showNotice = useCallback((kind: NoticeKind, text: string) => {
+    setNotice({ id: Date.now(), kind, text })
+  }, [])
+
+  useEffect(() => {
+    if (!notice) return
+    const t = window.setTimeout(() => setNotice(null), NOTICE_MS)
+    return () => window.clearTimeout(t)
+  }, [notice])
+
+  const applyRemoteBoard = useCallback((figs: FigureData[], remoteSplit?: boolean) => {
     skipHistory.current = true
     setFigures(figs.map((f) => ({ ...f, label: (f.label || '').trim() })))
+    if (typeof remoteSplit === 'boolean') setSplit(remoteSplit)
     setSelectedId(null)
+    setConfirmClear(false)
   }, [])
 
   const zoom = useZoomApp(applyRemoteBoard)
@@ -574,12 +810,16 @@ export default function App() {
     if (!zoom.status.inZoom || !zoom.status.ready) return
     if (broadcastTimer.current) clearTimeout(broadcastTimer.current)
     broadcastTimer.current = setTimeout(() => {
-      void zoom.broadcastBoard(figures)
+      void zoom.broadcastBoard(figures, split)
     }, 400)
     return () => {
       if (broadcastTimer.current) clearTimeout(broadcastTimer.current)
     }
-  }, [figures, zoom.status.inZoom, zoom.status.ready])
+  }, [figures, split, zoom.status.inZoom, zoom.status.ready, zoom.broadcastBoard])
+
+  useEffect(() => {
+    writeLastBoard(figures, split)
+  }, [figures, split])
 
   const selected = figures.find((f) => f.id === selectedId) || null
 
@@ -587,12 +827,12 @@ export default function App() {
     if (skipHistory.current) { skipHistory.current = false; return }
     setHistory((h) => {
       const next = h.slice(0, historyIndex + 1)
-      next.push(JSON.parse(JSON.stringify(figures)))
+      next.push(JSON.parse(JSON.stringify({ figures, split })))
       if (next.length > 40) next.shift()
       return next
     })
     setHistoryIndex((i) => Math.min(i + 1, 39))
-  }, [figures])
+  }, [figures, split])
 
   const updateFigure = (id: string, patch: Partial<FigureData>) => {
     setFigures((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
@@ -600,8 +840,11 @@ export default function App() {
   const addFigure = (type: FigureType) => {
     const id = crypto.randomUUID().slice(0, 8)
     const color = WOOD_TONES[Math.floor(Math.random() * WOOD_TONES.length)]
-    const newFig: FigureData = { id, position: [0, 0, 0], rotationY: 0, color, label: '', type, onBlock: false }
-    setFigures((prev) => [...prev, newFig])
+    setConfirmClear(false)
+    setFigures((prev) => {
+      const newFig: FigureData = { id, position: findFreePosition(prev), rotationY: 0, color, label: '', type, onBlock: false }
+      return [...prev, newFig]
+    })
     setSelectedId(id)
     setLabelInput('')
   }
@@ -610,7 +853,11 @@ export default function App() {
     setFigures((prev) => prev.filter((f) => f.id !== selectedId))
     setSelectedId(null)
   }
-  const clearBoard = () => { setFigures([]); setSelectedId(null) }
+  const clearBoard = () => {
+    setFigures([])
+    setSelectedId(null)
+    setConfirmClear(false)
+  }
   const rotateSelected = (delta: number) => {
     if (!selectedId || !selected) return
     updateFigure(selectedId, { rotationY: selected.rotationY + delta })
@@ -622,49 +869,59 @@ export default function App() {
   const undo = () => {
     if (historyIndex <= 0) return
     skipHistory.current = true
+    const snap = history[historyIndex - 1]
     setHistoryIndex(historyIndex - 1)
-    setFigures(JSON.parse(JSON.stringify(history[historyIndex - 1])))
+    setFigures(JSON.parse(JSON.stringify(snap.figures)))
+    setSplit(!!snap.split)
     setSelectedId(null)
+    setConfirmClear(false)
   }
   const redo = () => {
     if (historyIndex >= history.length - 1) return
     skipHistory.current = true
+    const snap = history[historyIndex + 1]
     setHistoryIndex(historyIndex + 1)
-    setFigures(JSON.parse(JSON.stringify(history[historyIndex + 1])))
+    setFigures(JSON.parse(JSON.stringify(snap.figures)))
+    setSplit(!!snap.split)
     setSelectedId(null)
+    setConfirmClear(false)
   }
-  const persistLast = (figs: FigureData[]) => localStorage.setItem(LAST_KEY, JSON.stringify(figs))
   const saveNamed = () => {
     const name = saveName.trim()
-    if (!name) { alert('Bitte einen Namen für „Speicher im Browser“ eingeben.'); return }
+    if (!name) { showNotice('error', 'Bitte einen Namen für „Speicher im Browser“ eingeben.'); return }
     const version = nextVersionForName(saves, name)
-    const entry: SavedBoard = { id: crypto.randomUUID().slice(0, 10), name, version, savedAt: new Date().toISOString(), figures: JSON.parse(JSON.stringify(figures)) }
+    const entry: SavedBoard = { id: crypto.randomUUID().slice(0, 10), name, version, savedAt: new Date().toISOString(), figures: JSON.parse(JSON.stringify(figures)), split }
     const next = [entry, ...saves]
-    writeSaves(next); setSaves(next); setSelectedSaveId(entry.id); setSaveName(name); persistLast(figures)
-    alert(`Gespeichert unter „${name}“ (Version ${version})`)
+    writeSaves(next); setSaves(next); setSelectedSaveId(entry.id); setSaveName(name)
+    showNotice('ok', `Gespeichert unter „${name}“ (Version ${version})`)
   }
   const saveNewVersion = () => {
     const current = saves.find((s) => s.id === selectedSaveId)
     const name = (saveName.trim() || current?.name || '').trim()
-    if (!name) { alert('Bitte einen Namen eingeben oder einen bestehenden Stand auswählen.'); return }
+    if (!name) { showNotice('error', 'Bitte einen Namen eingeben oder einen bestehenden Stand auswählen.'); return }
     setSaveName(name)
     const version = nextVersionForName(saves, name)
-    const entry: SavedBoard = { id: crypto.randomUUID().slice(0, 10), name, version, savedAt: new Date().toISOString(), figures: JSON.parse(JSON.stringify(figures)) }
+    const entry: SavedBoard = { id: crypto.randomUUID().slice(0, 10), name, version, savedAt: new Date().toISOString(), figures: JSON.parse(JSON.stringify(figures)), split }
     const next = [entry, ...saves]
-    writeSaves(next); setSaves(next); setSelectedSaveId(entry.id); persistLast(figures)
-    alert(`Neue Version: „${name}“ v${version}`)
+    writeSaves(next); setSaves(next); setSelectedSaveId(entry.id)
+    showNotice('ok', `Neue Version: „${name}“ v${version}`)
   }
   const loadSelected = () => {
     const entry = saves.find((s) => s.id === selectedSaveId)
-    if (!entry) { alert('Bitte einen gespeicherten Stand auswählen'); return }
+    if (!entry) { showNotice('error', 'Bitte einen gespeicherten Stand auswählen.'); return }
     skipHistory.current = true
     const figs = entry.figures.map((f) => ({ ...f, label: (f.label || '').trim() }))
-    setFigures(figs); setSelectedId(null); persistLast(figs)
+    setFigures(figs)
+    setSplit(!!entry.split)
+    setSelectedId(null)
+    setConfirmClear(false)
+    showNotice('ok', `„${entry.name}“ v${entry.version} geladen`)
   }
   const deleteSelected = () => {
     if (!selectedSaveId) return
     const next = saves.filter((s) => s.id !== selectedSaveId)
     writeSaves(next); setSaves(next); setSelectedSaveId(next[0]?.id || '')
+    showNotice('info', 'Gespeicherter Stand gelöscht')
   }
   const saveToFile = () => {
     const name = saveName.trim() || 'Aufstellung'
@@ -683,6 +940,29 @@ export default function App() {
     a.download = `${fileSafeName(name)}.sbrett.json`
     a.click()
     URL.revokeObjectURL(url)
+    showNotice('ok', 'Datei gespeichert')
+  }
+  const saveImage = () => {
+    const pane = canvasPaneRef.current
+    const canvas = pane?.querySelector('canvas')
+    if (!pane || !canvas) {
+      showNotice('error', 'Bild konnte nicht erzeugt werden.')
+      return
+    }
+    try {
+      const url = composeBoardPng(pane, canvas, cameraRef.current, figures, split, selectedId)
+      if (!url) {
+        showNotice('error', 'Bild konnte nicht erzeugt werden.')
+        return
+      }
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${fileSafeName(saveName.trim() || 'Aufstellung')}.png`
+      a.click()
+      showNotice('ok', 'Bild gespeichert')
+    } catch {
+      showNotice('error', 'Bild konnte nicht erzeugt werden.')
+    }
   }
   const loadFromFile = (file: File) => {
     const reader = new FileReader()
@@ -692,14 +972,15 @@ export default function App() {
         skipHistory.current = true
         setFigures(parsed.figures)
         setSelectedId(null)
-        persistLast(parsed.figures)
+        setConfirmClear(false)
         if (parsed.name) setSaveName(parsed.name)
         if (typeof parsed.split === 'boolean') setSplit(parsed.split)
+        showNotice('ok', parsed.name ? `„${parsed.name}“ aus Datei geladen` : 'Stand aus Datei geladen')
       } catch {
-        alert('Die Datei ist kein gültiger SystemischesBrett-Stand.')
+        showNotice('error', 'Die Datei ist kein gültiger SystemischesBrett-Stand.')
       }
     }
-    reader.onerror = () => alert('Die Datei konnte nicht gelesen werden.')
+    reader.onerror = () => showNotice('error', 'Die Datei konnte nicht gelesen werden.')
     reader.readAsText(file)
   }
 
@@ -739,6 +1020,24 @@ export default function App() {
               {zoom.status.userName && <div>Nutzer: {zoom.status.userName}</div>}
               {zoom.status.meetingTopic && <div>Meeting: {zoom.status.meetingTopic}</div>}
               {zoom.status.error && <div style={{ color: '#f88' }}>{zoom.status.error}</div>}
+            </div>
+          )}
+          {notice && (
+            <div
+              data-testid="notice"
+              data-kind={notice.kind}
+              role="status"
+              style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                borderRadius: 6,
+                fontSize: 12,
+                lineHeight: 1.4,
+                background: notice.kind === 'error' ? '#4a2222' : notice.kind === 'ok' ? '#1a3a2a' : '#2a3344',
+                color: notice.kind === 'error' ? '#f3c0c0' : '#dce8df',
+              }}
+            >
+              {notice.text}
             </div>
           )}
         </div>
@@ -815,6 +1114,7 @@ export default function App() {
           </div>
           <div style={{ fontWeight: 600, fontSize: 13, marginTop: 4 }}>Datei</div>
           <button data-testid="save-file" onClick={saveToFile} style={btnStyle}>⬇ Als Datei speichern</button>
+          <button data-testid="save-image" onClick={saveImage} style={btnStyle}>🖼 Als Bild speichern</button>
           <button data-testid="load-file" onClick={() => fileInputRef.current?.click()} style={btnStyle}>⬆ Aus Datei laden</button>
           <input
             ref={fileInputRef}
@@ -835,17 +1135,46 @@ export default function App() {
               <div style={{ fontWeight: 600, fontSize: 13 }}>Zoom</div>
               <button data-testid="zoom-share" onClick={() => void zoom.shareApp()} style={{ ...btnStyle, background: '#2d5a3d' }}>📡 App teilen</button>
               <button data-testid="zoom-expand" onClick={() => void zoom.expandApp()} style={btnStyle}>⛶ Erweitern</button>
-              <button data-testid="zoom-sync" onClick={() => void zoom.broadcastBoard(figures)} style={btnStyle}>🔄 Brett synchronisieren</button>
+              <button data-testid="zoom-sync" onClick={() => void zoom.broadcastBoard(figures, split)} style={btnStyle}>🔄 Brett synchronisieren</button>
             </div>
           )}
-          <button onClick={clearBoard} style={{ ...btnStyle, background: '#3a2a1a' }}>Brett leeren</button>
+          {confirmClear ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>Alle Figuren entfernen?</div>
+              <button data-testid="confirm-clear" onClick={clearBoard} style={{ ...btnStyle, background: '#5c2a2a' }}>Wirklich leeren</button>
+              <button data-testid="cancel-clear" onClick={() => setConfirmClear(false)} style={btnStyle}>Abbrechen</button>
+            </div>
+          ) : (
+            <button
+              data-testid="clear-board"
+              onClick={() => {
+                if (figures.length === 0) {
+                  showNotice('info', 'Das Brett ist bereits leer.')
+                  return
+                }
+                setConfirmClear(true)
+              }}
+              style={{ ...btnStyle, background: '#3a2a1a' }}
+            >
+              Brett leeren
+            </button>
+          )}
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
       </aside>
-      <div data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, position: 'relative' }}>
-        <Canvas shadows camera={{ position: [6, 5, 7], fov: 42 }} style={{ background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)' }} onPointerMissed={() => handleSelect(null)}>
+      <div ref={canvasPaneRef} data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, position: 'relative', touchAction: 'none' }}>
+        <Canvas
+          shadows
+          camera={{ position: [6, 5, 7], fov: 42 }}
+          gl={{ preserveDrawingBuffer: true, antialias: true }}
+          style={{ background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)', touchAction: 'none' }}
+          onCreated={({ gl }) => {
+            gl.domElement.style.touchAction = 'none'
+          }}
+          onPointerMissed={() => handleSelect(null)}
+        >
           <Suspense fallback={null}>
-            <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} split={split} />
+            <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} split={split} cameraRef={cameraRef} />
           </Suspense>
         </Canvas>
       </div>
