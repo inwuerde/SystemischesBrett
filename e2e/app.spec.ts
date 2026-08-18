@@ -162,6 +162,30 @@ test.describe('SystemischesBrett – Kamera & History', () => {
     await expect(page.getByRole('button', { name: '↩ Undo' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Redo ↪' })).toBeVisible()
   })
+
+  test('Undo/Redo bleibt über 40 Spielzüge erhalten', async ({ page }) => {
+    const undo = page.getByRole('button', { name: '↩ Undo' })
+    const redo = page.getByRole('button', { name: 'Redo ↪' })
+    await clearBoard(page)
+    const steps = 45
+    for (let i = 0; i < steps; i++) {
+      await addFigure(page, 'cube')
+    }
+    await expect(page.getByText('Ausgewählt')).toBeVisible()
+    for (let i = 0; i < steps; i++) {
+      await expect(undo).toBeEnabled()
+      await undo.click()
+    }
+    await expect(page.getByText('Figur anklicken oder ziehen')).toBeVisible()
+    await page.getByRole('button', { name: 'Brett leeren' }).click()
+    await expectNotice(page, 'bereits leer')
+    await expect(redo).toBeEnabled()
+    await redo.click()
+    await expect(undo).toBeEnabled()
+    await expect(redo).toBeEnabled()
+    await page.getByRole('button', { name: 'Brett leeren' }).click()
+    await expect(page.getByRole('button', { name: 'Wirklich leeren' })).toBeVisible()
+  })
 })
 
 test.describe('SystemischesBrett – Speicher im Browser & Versionierung', () => {
