@@ -69,7 +69,7 @@ Die Dateien liegen unter [`docs/videos/`](docs/videos/). Neu aufnehmen: `npm run
 
 ### Verlauf
 
-- **Undo** / **Redo** für Figurenänderungen (bis zu 40 Schritte).
+- **Undo** / **Redo** für Figurenänderungen, ohne Begrenzung in der Sitzung. Ein Ziehen zählt als ein Zug.
 - Der letzte Stand wird automatisch im Browser gehalten und nach Reload wiederhergestellt.
 
 ### Speicher im Browser und Datei
@@ -179,7 +179,7 @@ npm run test:e2e:responsive   # Sidebar bei schmalen Viewports
 | Datei | Inhalt |
 |--------|--------|
 | `e2e/helpers.ts` | `openApp`, `addFigure`, `saveUnder`, … |
-| `e2e/app.spec.ts` | UI, Figuren, Speichern/Versionierung, Kamera, Spielfeld trennen |
+| `e2e/app.spec.ts` | UI, Figuren, Speichern/Versionierung, Kamera, History (auch >40 Züge), Spielfeld trennen |
 | `e2e/smoke.spec.ts` | Gesamtflow speichern/laden |
 | `e2e/zoom.spec.ts` | Standalone vs. `?zoom=1` Meeting-UI |
 | `e2e/zoom-unit.spec.ts` | Status-Badge & Capabilities-Wiring |

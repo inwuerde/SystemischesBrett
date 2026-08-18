@@ -89,6 +89,14 @@ type BoardSnap = {
   split: boolean
 }
 
+function cloneBoardSnap(figures: FigureData[], split: boolean): BoardSnap {
+  return JSON.parse(JSON.stringify({ figures, split })) as BoardSnap
+}
+
+function boardSnapsEqual(a: BoardSnap, b: BoardSnap): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 type NoticeKind = 'info' | 'ok' | 'error'
 
 type Notice = {
@@ -825,14 +833,13 @@ export default function App() {
 
   useEffect(() => {
     if (skipHistory.current) { skipHistory.current = false; return }
-    setHistory((h) => {
-      const next = h.slice(0, historyIndex + 1)
-      next.push(JSON.parse(JSON.stringify({ figures, split })))
-      if (next.length > 40) next.shift()
-      return next
-    })
-    setHistoryIndex((i) => Math.min(i + 1, 39))
-  }, [figures, split])
+    if (dragging) return
+    const snap = cloneBoardSnap(figures, split)
+    const last = history[historyIndex]
+    if (last && boardSnapsEqual(last, snap)) return
+    setHistory((h) => [...h.slice(0, historyIndex + 1), snap])
+    setHistoryIndex((i) => i + 1)
+  }, [figures, split, dragging])
 
   const updateFigure = (id: string, patch: Partial<FigureData>) => {
     setFigures((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
