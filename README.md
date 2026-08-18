@@ -155,6 +155,13 @@ Vorlage: [`zoom-app-manifest.template.json`](zoom-app-manifest.template.json)
 4. **Home URL** + **Domain Allow List** auf eure HTTPS-URL setzen (lokal: ngrok)  
 5. Domain `appssdk.zoom.us` in der Allow List belassen  
 
+Zoom zeigt sonst nur einen **weißen Screen**, wenn:
+
+- die Home-URL die OWASP-Header `Strict-Transport-Security`, `X-Content-Type-Options`, `Content-Security-Policy` und `Referrer-Policy` nicht liefert (`npm run dev` / `npm run preview` setzen sie), oder
+- das Zoom-Panel keine Höhe hat (die App füllt das Fenster jetzt fest aus und ruft `config()` sofort auf).
+
+Nach einer Änderung die App im Meeting **schließen und neu öffnen**.
+
 Lokal mit Tunnel:
 
 ```bash

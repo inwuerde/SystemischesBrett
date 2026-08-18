@@ -1,9 +1,11 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
-import { OrbitControls, Html } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei/core/OrbitControls'
+import { Html } from '@react-three/drei/web/Html'
 import { Suspense, useState, useRef, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import * as THREE from 'three'
 import { useZoomApp } from './zoom'
+import { ErrorBoundary } from './ErrorBoundary'
 
 export type FigureType = 'tall' | 'medium' | 'small' | 'cube' | 'disc' | 'block'
 
@@ -141,7 +143,11 @@ function readSaves(): SavedBoard[] {
 }
 
 function writeSaves(saves: SavedBoard[]) {
-  localStorage.setItem(SAVES_KEY, JSON.stringify(saves))
+  try {
+    localStorage.setItem(SAVES_KEY, JSON.stringify(saves))
+  } catch {
+    /* Zoom iframe may block storage */
+  }
 }
 
 function nextVersionForName(saves: SavedBoard[], name: string): number {
@@ -190,8 +196,12 @@ function readLastBoard(): BoardSnap | null {
 }
 
 function writeLastBoard(figures: FigureData[], split: boolean) {
-  const payload: BoardSnap = { figures, split }
-  localStorage.setItem(LAST_KEY, JSON.stringify(payload))
+  try {
+    const payload: BoardSnap = { figures, split }
+    localStorage.setItem(LAST_KEY, JSON.stringify(payload))
+  } catch {
+    /* Zoom iframe may block storage */
+  }
 }
 
 function labelAnchorY(type: FigureType, onBlock: boolean) {
@@ -991,6 +1001,8 @@ export default function App() {
     reader.readAsText(file)
   }
 
+  const inZoomClient = zoom.status.inZoom || (typeof navigator !== 'undefined' && /ZoomWebKit|ZoomApps/i.test(navigator.userAgent || ''))
+
   return (
     <div data-testid="app-root" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', background: '#0d1b2a', overflow: 'hidden' }}>
       <aside
@@ -1169,21 +1181,39 @@ export default function App() {
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
       </aside>
-      <div ref={canvasPaneRef} data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, position: 'relative', touchAction: 'none' }}>
-        <Canvas
-          shadows
-          camera={{ position: [6, 5, 7], fov: 42 }}
-          gl={{ preserveDrawingBuffer: true, antialias: true }}
-          style={{ background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)', touchAction: 'none' }}
-          onCreated={({ gl }) => {
-            gl.domElement.style.touchAction = 'none'
-          }}
-          onPointerMissed={() => handleSelect(null)}
+      <div ref={canvasPaneRef} data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, minHeight: 0, position: 'relative', touchAction: 'none', background: '#1a2530' }}>
+        <ErrorBoundary
+          fallback={
+            <div data-testid="webgl-fallback" style={{ padding: 16, color: '#dce8df', fontSize: 13 }}>
+              Die 3D-Ansicht ist in diesem Zoom-Fenster nicht verfügbar. Sidebar bleibt nutzbar.
+            </div>
+          }
         >
-          <Suspense fallback={null}>
-            <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} split={split} cameraRef={cameraRef} />
-          </Suspense>
-        </Canvas>
+          <Canvas
+            shadows={!inZoomClient}
+            dpr={inZoomClient ? 1 : [1, 2]}
+            camera={{ position: [6, 5, 7], fov: 42 }}
+            resize={{ debounce: 0 }}
+            gl={{
+              antialias: !inZoomClient,
+              alpha: false,
+              preserveDrawingBuffer: true,
+              powerPreference: 'default',
+              failIfMajorPerformanceCaveat: false,
+            }}
+            style={{ width: '100%', height: '100%', display: 'block', background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)', touchAction: 'none' }}
+            onCreated={({ gl }) => {
+              gl.domElement.style.touchAction = 'none'
+              gl.domElement.style.width = '100%'
+              gl.domElement.style.height = '100%'
+            }}
+            onPointerMissed={() => handleSelect(null)}
+          >
+            <Suspense fallback={null}>
+              <Scene figures={figures} selectedId={selectedId} onSelect={handleSelect} onMove={(id, pos) => updateFigure(id, { position: pos })} dragging={dragging} setDragging={setDragging} cameraPreset={cameraPreset} split={split} cameraRef={cameraRef} />
+            </Suspense>
+          </Canvas>
+        </ErrorBoundary>
       </div>
     </div>
   )

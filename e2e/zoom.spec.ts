@@ -68,6 +68,16 @@ test.describe('Zoom App – Simulated in-meeting', () => {
 })
 
 test.describe('Zoom App – Default (ohne Query)', () => {
+  test('Home URL liefert OWASP-Header für den Zoom-Client', async ({ request }) => {
+    const res = await request.get('/')
+    expect(res.ok()).toBeTruthy()
+    const headers = res.headers()
+    expect(headers['strict-transport-security']).toMatch(/max-age=/i)
+    expect(headers['x-content-type-options']).toMatch(/nosniff/i)
+    expect(headers['content-security-policy']).toBeTruthy()
+    expect(headers['referrer-policy']).toBeTruthy()
+  })
+
   test('lädt ohne Fehler und zeigt Status-Badge', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByText('SystemischesBrett')).toBeVisible()

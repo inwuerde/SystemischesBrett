@@ -1,5 +1,5 @@
 export { useZoomApp } from './useZoomApp'
-export { initZoomApp, ZOOM_CAPABILITIES } from './zoomClient'
+export { initZoomApp, startZoomSdkConfig, ZOOM_CAPABILITIES } from './zoomClient'
 export type {
   ZoomAppStatus,
   ZoomAppApi,

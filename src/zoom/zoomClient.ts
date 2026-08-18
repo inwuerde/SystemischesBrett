@@ -69,6 +69,8 @@ function isInZoomClient(): boolean {
 }
 
 async function loadSdk(): Promise<ZoomSdkLike | null> {
+  const injected = (window as Window & { zoomSdk?: ZoomSdkLike }).zoomSdk
+  if (injected && typeof injected.config === 'function') return injected
   try {
     const mod = await import('@zoom/appssdk')
     const sdk = (mod as { default?: ZoomSdkLike }).default ?? (mod as unknown as ZoomSdkLike)
@@ -76,6 +78,43 @@ async function loadSdk(): Promise<ZoomSdkLike | null> {
   } catch {
     return null
   }
+}
+
+type ZoomConfigResult = {
+  sdk: ZoomSdkLike
+  configRes: Awaited<ReturnType<ZoomSdkLike['config']>>
+}
+
+let sdkConfigPromise: Promise<ZoomConfigResult | null> | null = null
+
+/** Start zoomSdk.config() as soon as the Zoom client is detected. */
+export function startZoomSdkConfig(): Promise<ZoomConfigResult | null> {
+  if (sdkConfigPromise) return sdkConfigPromise
+  if (typeof window === 'undefined' || !isInZoomClient()) {
+    sdkConfigPromise = Promise.resolve(null)
+    return sdkConfigPromise
+  }
+  sdkConfigPromise = (async () => {
+    const sdk = await loadSdk()
+    if (!sdk || typeof sdk.config !== 'function') return null
+    const early = (window as Window & { __zoomConfigPromise?: Promise<ZoomConfigResult['configRes']> }).__zoomConfigPromise
+    const configRes = early
+      ? await early
+      : await sdk.config({
+          version: '0.16',
+          capabilities: [...ZOOM_CAPABILITIES],
+          popoutSize: { width: 960, height: 640 },
+        })
+    if ((window.innerHeight || 0) < 200) {
+      try { await sdk.expandApp?.() } catch { /* optional */ }
+    }
+    return { sdk, configRes }
+  })()
+  return sdkConfigPromise
+}
+
+if (typeof window !== 'undefined') {
+  void startZoomSdkConfig()
 }
 
 const defaultStatus = (): ZoomAppStatus => ({
@@ -154,19 +193,16 @@ export async function initZoomApp(onBoardSync?: BoardSyncHandler): Promise<{
   }
 
   try {
-    sdk = await loadSdk()
-    if (!sdk || typeof sdk.config !== 'function') {
+    const configured = await startZoomSdkConfig()
+    sdk = configured?.sdk ?? null
+    if (!sdk || !configured) {
       status.ready = true
       status.inZoom = true
       status.error = 'Zoom SDK nicht geladen'
       return { status, ...helpers }
     }
 
-    const configRes = await sdk.config({
-      version: '0.16',
-      capabilities: [...ZOOM_CAPABILITIES],
-      popoutSize: { width: 960, height: 640 },
-    })
+    const configRes = configured.configRes
 
     status.ready = true
     status.inZoom = true
