@@ -6,11 +6,11 @@
   },
   "oauth_information": {
     "usage": "USER_OPERATION",
-    "development_redirect_uri": "https://YOUR_NGROK_OR_DOMAIN/auth",
-    "production_redirect_uri": "https://YOUR_PRODUCTION_DOMAIN/auth",
+    "development_redirect_uri": "https://unafraid-tweet-diligence.ngrok-free.dev/auth",
+    "production_redirect_uri": "https://unafraid-tweet-diligence.ngrok-free.dev/auth",
     "oauth_allow_list": [
-      "https://YOUR_NGROK_OR_DOMAIN",
-      "https://YOUR_PRODUCTION_DOMAIN"
+      "https://unafraid-tweet-diligence.ngrok-free.dev",
+      "https://unafraid-tweet-diligence.ngrok-free.dev"
     ],
     "strict_mode": false,
     "scopes": [
@@ -23,15 +23,15 @@
   },
   "features": {
     "products": ["ZOOM_MEETING"],
-    "development_home_uri": "https://YOUR_NGROK_OR_DOMAIN/",
-    "production_home_uri": "https://YOUR_PRODUCTION_DOMAIN/",
+    "development_home_uri": "https://unafraid-tweet-diligence.ngrok-free.dev/",
+    "production_home_uri": "https://unafraid-tweet-diligence.ngrok-free.dev/",
     "domain_allow_list": [
       {
-        "domain": "YOUR_NGROK_OR_DOMAIN",
+        "domain": "unafraid-tweet-diligence.ngrok-free.dev",
         "explanation": "Development tunnel"
       },
       {
-        "domain": "YOUR_PRODUCTION_DOMAIN",
+        "domain": "unafraid-tweet-diligence.ngrok-free.dev",
         "explanation": "Production hosting"
       },
       {
