@@ -2,9 +2,9 @@
 
 Interaktives **3D systemisches Brett** (Holzfiguren-Aufstellung) – als **Zoom App** und standalone im Browser.
 
-![Familienaufstellung auf dem Systemischen Brett](docs/familie-aufstellung.svg)
+![Familienaufstellung auf dem Systemischen Brett](docs/Aufstellung%20v1.png)
 
-*Beispiel-Familienaufstellung: Vater, Mutter, Tochter, Sohn (auf Podest) und Würfel „Thema“ – mit Schlangenlinie auf dem Brett.*
+*Beispiel-Aufstellung mit getrenntem Spielfeld: Vater, Mutter, Sohn, Tochter, Onkel, Tante, Cousine sowie Würfel und Scheibe.*
 
 ## Funktionen
 
