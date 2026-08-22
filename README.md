@@ -84,6 +84,7 @@ Zwei getrennte Wege: im Browser (localStorage, gerätegebunden) oder als Datei a
 - Ohne Namen erscheint ein Hinweis; gleiche Bezeichnung erzeugt automatisch die nächste Versionsnummer.
 - Der letzte Stand wird zusätzlich automatisch im Browser gehalten und nach Reload wiederhergestellt.
 - **Als Datei speichern** schreibt den aktuellen Stand (Figuren, Name, Trennung) als `.sbrett.json` auf den Rechner.
+- **Als Bild speichern** legt ein PNG an. Oben links stehen Dateiname/Bezeichnung, Versionsnummer und Datum/Uhrzeit.
 - **Aus Datei laden** öffnet eine `.sbrett.json` / `.json` und setzt das Brett darauf. So lassen sich Aufstellungen weitergeben oder sichern.
 
 ### Zoom App

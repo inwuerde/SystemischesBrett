@@ -38,6 +38,13 @@ const SNAKE_SEGMENTS = 96
 /** Brett ≈ 50 cm bei 11 Einheiten → 2 cm Abstand ≈ 0.44 */
 const SPLIT_GAP = 0.44
 const PEDESTAL_SIZE = 0.5
+const CORNER_RADIUS = 0.62
+const RIM_WIDTH = 0.34
+const RIM_HEIGHT = 0.16
+const BOARD_THICKNESS = 0.12
+const SCENE_BG = '#0d1b2a'
+const BOARD_EDGE_SEGS = 18
+const BOARD_UV_SCALE = 2 / BOARD_SIZE
 
 function snakeXAtT(t: number) {
   return Math.sin(t * Math.PI * 2 * SNAKE_WAVES) * SNAKE_AMPLITUDE
@@ -60,21 +67,227 @@ function makeSnakePoints() {
   return pts
 }
 
+function lineSegs(shape: THREE.Shape, x0: number, y0: number, x1: number, y1: number, segs: number) {
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs
+    shape.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+  }
+}
+
 function makeHalfShape(side: 'left' | 'right') {
   const shape = new THREE.Shape()
-  const outerX = side === 'left' ? -BOARD_HALF : BOARD_HALF
   const snake = makeSnakePoints()
+  const r = CORNER_RADIUS
+  const zMin = -BOARD_HALF
+  const zMax = BOARD_HALF
   if (side === 'left') {
-    shape.moveTo(outerX, snake[0].z)
-    for (const p of snake) shape.lineTo(p.x, p.z)
-    shape.lineTo(outerX, snake[snake.length - 1].z)
+    const x = -BOARD_HALF
+    const cx = x + r
+    shape.moveTo(snake[0].x, snake[0].z)
+    for (let i = 1; i < snake.length; i++) shape.lineTo(snake[i].x, snake[i].z)
+    lineSegs(shape, snake[snake.length - 1].x, snake[snake.length - 1].z, cx, zMax, 8)
+    shape.absarc(cx, zMax - r, r, Math.PI / 2, Math.PI, false)
+    lineSegs(shape, x, zMax - r, x, zMin + r, BOARD_EDGE_SEGS)
+    shape.absarc(cx, zMin + r, r, Math.PI, Math.PI * 1.5, false)
+    lineSegs(shape, cx, zMin, snake[0].x, snake[0].z, 8)
   } else {
-    shape.moveTo(outerX, snake[0].z)
-    shape.lineTo(outerX, snake[snake.length - 1].z)
-    for (let i = snake.length - 1; i >= 0; i--) shape.lineTo(snake[i].x, snake[i].z)
+    const x = BOARD_HALF
+    const cx = x - r
+    shape.moveTo(snake[0].x, snake[0].z)
+    lineSegs(shape, snake[0].x, snake[0].z, cx, zMin, 8)
+    shape.absarc(cx, zMin + r, r, -Math.PI / 2, 0, false)
+    lineSegs(shape, x, zMin + r, x, zMax - r, BOARD_EDGE_SEGS)
+    shape.absarc(cx, zMax - r, r, 0, Math.PI / 2, false)
+    lineSegs(shape, cx, zMax, snake[snake.length - 1].x, snake[snake.length - 1].z, 8)
+    for (let i = snake.length - 2; i >= 0; i--) shape.lineTo(snake[i].x, snake[i].z)
   }
   shape.closePath()
   return shape
+}
+
+function makeHalfRimShape(side: 'left' | 'right') {
+  const shape = new THREE.Shape()
+  const snake = makeSnakePoints()
+  const w = RIM_WIDTH
+  const rIn = CORNER_RADIUS
+  const rOut = CORNER_RADIUS + w
+  const zMin = -BOARD_HALF
+  const zMax = BOARD_HALF
+  const sx0 = snake[0].x
+  const sx1 = snake[snake.length - 1].x
+  if (side === 'left') {
+    const xIn = -BOARD_HALF
+    const xOut = -BOARD_HALF - w
+    const cxIn = xIn + rIn
+    const cxOut = xOut + rOut
+    shape.moveTo(sx0, zMin)
+    shape.lineTo(sx0, zMin - w)
+    lineSegs(shape, sx0, zMin - w, cxOut, zMin - w, 8)
+    shape.absarc(cxOut, zMin - w + rOut, rOut, -Math.PI / 2, Math.PI, true)
+    lineSegs(shape, xOut, zMin - w + rOut, xOut, zMax + w - rOut, BOARD_EDGE_SEGS)
+    shape.absarc(cxOut, zMax + w - rOut, rOut, Math.PI, Math.PI / 2, true)
+    lineSegs(shape, cxOut, zMax + w, sx1, zMax + w, 8)
+    shape.lineTo(sx1, zMax)
+    lineSegs(shape, sx1, zMax, cxIn, zMax, 8)
+    shape.absarc(cxIn, zMax - rIn, rIn, Math.PI / 2, Math.PI, false)
+    lineSegs(shape, xIn, zMax - rIn, xIn, zMin + rIn, BOARD_EDGE_SEGS)
+    shape.absarc(cxIn, zMin + rIn, rIn, Math.PI, Math.PI * 1.5, false)
+    lineSegs(shape, cxIn, zMin, sx0, zMin, 8)
+  } else {
+    const xIn = BOARD_HALF
+    const xOut = BOARD_HALF + w
+    const cxIn = xIn - rIn
+    const cxOut = xOut - rOut
+    shape.moveTo(sx0, zMin)
+    lineSegs(shape, sx0, zMin, cxIn, zMin, 8)
+    shape.absarc(cxIn, zMin + rIn, rIn, -Math.PI / 2, 0, false)
+    lineSegs(shape, xIn, zMin + rIn, xIn, zMax - rIn, BOARD_EDGE_SEGS)
+    shape.absarc(cxIn, zMax - rIn, rIn, 0, Math.PI / 2, false)
+    lineSegs(shape, cxIn, zMax, sx1, zMax, 8)
+    shape.lineTo(sx1, zMax + w)
+    lineSegs(shape, sx1, zMax + w, cxOut, zMax + w, 8)
+    shape.absarc(cxOut, zMax + w - rOut, rOut, Math.PI / 2, 0, true)
+    lineSegs(shape, xOut, zMax + w - rOut, xOut, zMin - w + rOut, BOARD_EDGE_SEGS)
+    shape.absarc(cxOut, zMin - w + rOut, rOut, 0, -Math.PI / 2, true)
+    lineSegs(shape, cxOut, zMin - w, sx0, zMin - w, 8)
+    shape.lineTo(sx0, zMin)
+  }
+  shape.closePath()
+  return shape
+}
+
+function boardUv(x: number, z: number) {
+  return new THREE.Vector2((x + BOARD_HALF) * BOARD_UV_SCALE, (z + BOARD_HALF) * BOARD_UV_SCALE)
+}
+
+const boardUVGenerator = {
+  generateTopUV: (_geometry: THREE.ExtrudeGeometry, vertices: number[], a: number, b: number, c: number) => [
+    boardUv(vertices[a * 3], vertices[a * 3 + 1]),
+    boardUv(vertices[b * 3], vertices[b * 3 + 1]),
+    boardUv(vertices[c * 3], vertices[c * 3 + 1]),
+  ],
+  generateSideWallUV: (_geometry: THREE.ExtrudeGeometry, vertices: number[], a: number, b: number, c: number, d: number) => {
+    const ax = vertices[a * 3]
+    const ay = vertices[a * 3 + 1]
+    const bx = vertices[b * 3]
+    const by = vertices[b * 3 + 1]
+    if (Math.abs(ay - by) < Math.abs(ax - bx)) {
+      return [boardUv(ax, 0), boardUv(bx, 0), boardUv(vertices[c * 3], 0), boardUv(vertices[d * 3], 0)]
+    }
+    return [boardUv(0, ay), boardUv(0, by), boardUv(0, vertices[c * 3 + 1]), boardUv(0, vertices[d * 3 + 1])]
+  },
+}
+
+function createWoodTexture(darker: boolean) {
+  const size = 1024
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('2d context')
+  const img = ctx.createImageData(size, size)
+  const light = darker ? [210, 186, 148] : [232, 216, 186]
+  const deep = darker ? [196, 170, 132] : [218, 198, 166]
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const x = i / size
+      const y = j / size
+      const wave = Math.sin(y * Math.PI * 7.5) * 0.03 + Math.sin(y * Math.PI * 21) * 0.012
+      const g = x * 22 + wave * 6 + Math.sin(y * 28) * 0.18
+      const rings = Math.sin(g) * 0.5 + 0.5
+      const fine = Math.sin(g * 6.8 + y * 14) * 0.06
+      const t = Math.min(1, Math.max(0, rings + fine))
+      const mix = (1 - t) * 0.22
+      const k = (i + j * size) * 4
+      img.data[k] = light[0] + (deep[0] - light[0]) * mix
+      img.data[k + 1] = light[1] + (deep[1] - light[1]) * mix
+      img.data[k + 2] = light[2] + (deep[2] - light[2]) * mix
+      img.data[k + 3] = 255
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.needsUpdate = true
+  return tex
+}
+
+function tessellateShapeGeometry(shape: THREE.Shape, maxEdge = 0.32) {
+  const base = new THREE.ShapeGeometry(shape, 24)
+  const src = base.index ? base.toNonIndexed() : base
+  const pos = src.attributes.position
+  type Tri = [number, number, number, number, number, number]
+  let tris: Tri[] = []
+  for (let i = 0; i < pos.count; i += 3) {
+    tris.push([
+      pos.getX(i), pos.getY(i),
+      pos.getX(i + 1), pos.getY(i + 1),
+      pos.getX(i + 2), pos.getY(i + 2),
+    ])
+  }
+  src.dispose()
+  const len = (ax: number, ay: number, bx: number, by: number) => Math.hypot(bx - ax, by - ay)
+  for (let pass = 0; pass < 7; pass++) {
+    const next: Tri[] = []
+    let split = false
+    for (const [ax, ay, bx, by, cx, cy] of tris) {
+      if (len(ax, ay, bx, by) <= maxEdge && len(bx, by, cx, cy) <= maxEdge && len(cx, cy, ax, ay) <= maxEdge) {
+        next.push([ax, ay, bx, by, cx, cy])
+        continue
+      }
+      split = true
+      const mx = (ax + bx + cx) / 3
+      const my = (ay + by + cy) / 3
+      next.push([ax, ay, bx, by, mx, my], [bx, by, cx, cy, mx, my], [cx, cy, ax, ay, mx, my])
+    }
+    tris = next
+    if (!split) break
+  }
+  const positions = new Float32Array(tris.length * 9)
+  const normals = new Float32Array(tris.length * 9)
+  const uvs = new Float32Array(tris.length * 6)
+  tris.forEach((t, i) => {
+    for (let v = 0; v < 3; v++) {
+      const x = t[v * 2]
+      const y = t[v * 2 + 1]
+      const p = i * 9 + v * 3
+      positions[p] = x
+      positions[p + 1] = y
+      positions[p + 2] = 0
+      normals[p + 2] = -1
+      uvs[i * 6 + v * 2] = (x + BOARD_HALF) * BOARD_UV_SCALE
+      uvs[i * 6 + v * 2 + 1] = (y + BOARD_HALF) * BOARD_UV_SCALE
+    }
+  })
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  g.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+  g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  return g
+}
+
+function flattenExtrudeCapNormals(geometry: THREE.BufferGeometry, depth: number) {
+  const pos = geometry.attributes.position
+  if (!geometry.attributes.normal) geometry.computeVertexNormals()
+  const norm = geometry.attributes.normal
+  const eps = 1e-4
+  for (let i = 0; i < pos.count; i++) {
+    const z = pos.getZ(i)
+    if (Math.abs(z) < eps) norm.setXYZ(i, 0, 0, -1)
+    else if (Math.abs(z - depth) < eps) norm.setXYZ(i, 0, 0, 1)
+  }
+  norm.needsUpdate = true
+}
+
+let woodTextures: { surface: THREE.CanvasTexture; rim: THREE.CanvasTexture } | null = null
+function getWoodTextures() {
+  if (!woodTextures) woodTextures = { surface: createWoodTexture(false), rim: createWoodTexture(true) }
+  return woodTextures
 }
 
 type SavedBoard = {
@@ -156,6 +369,12 @@ function nextVersionForName(saves: SavedBoard[], name: string): number {
   return Math.max(...same.map((s) => s.version)) + 1
 }
 
+function latestVersionForName(saves: SavedBoard[], name: string): number {
+  const same = saves.filter((s) => s.name.toLowerCase() === name.toLowerCase())
+  if (same.length === 0) return 1
+  return Math.max(...same.map((s) => s.version))
+}
+
 function normalizeFigure(f: Partial<FigureData>): FigureData | null {
   if (!f || !Array.isArray(f.position) || f.position.length < 3) return null
   return {
@@ -232,18 +451,18 @@ function paintLabelBadge(
   scale: number,
   selected: boolean,
 ) {
-  const fontPx = Math.max(10, 12 * scale)
+  const fontPx = Math.max(15, 18 * scale)
   ctx.font = `${fontPx}px system-ui, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  const padX = 8 * scale
-  const padY = 2 * scale
+  const padX = 12 * scale
+  const padY = 3 * scale
   const tw = ctx.measureText(text).width
   const bw = tw + padX * 2
   const bh = fontPx + padY * 2
   const x = cx - bw / 2
   const y = cy - bh / 2
-  fillRoundRect(ctx, x, y, bw, bh, 4 * scale)
+  fillRoundRect(ctx, x, y, bw, bh, 6 * scale)
   ctx.fillStyle = 'rgba(0,0,0,0.75)'
   ctx.fill()
   if (selected) {
@@ -255,6 +474,37 @@ function paintLabelBadge(
   ctx.fillText(text, cx, cy)
 }
 
+function paintImageCaption(
+  ctx: CanvasRenderingContext2D,
+  title: string,
+  meta: string,
+  scale: number,
+) {
+  const titlePx = Math.max(16, 20 * scale)
+  const metaPx = Math.max(12, 14 * scale)
+  const pad = 12 * scale
+  const gap = 4 * scale
+  const x = 12 * scale
+  const y = 12 * scale
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  ctx.font = `600 ${titlePx}px system-ui, sans-serif`
+  const tw1 = ctx.measureText(title).width
+  ctx.font = `${metaPx}px system-ui, sans-serif`
+  const tw2 = ctx.measureText(meta).width
+  const bw = Math.max(tw1, tw2) + pad * 2
+  const bh = pad + titlePx + gap + metaPx + pad
+  fillRoundRect(ctx, x, y, bw, bh, 8 * scale)
+  ctx.fillStyle = 'rgba(13, 27, 42, 0.82)'
+  ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.font = `600 ${titlePx}px system-ui, sans-serif`
+  ctx.fillText(title, x + pad, y + pad)
+  ctx.fillStyle = '#dce8df'
+  ctx.font = `${metaPx}px system-ui, sans-serif`
+  ctx.fillText(meta, x + pad, y + pad + titlePx + gap)
+}
+
 /** WebGL canvas + HTML nameplates (Drei Html is not part of the GL buffer). */
 function composeBoardPng(
   pane: HTMLElement,
@@ -263,6 +513,7 @@ function composeBoardPng(
   figures: FigureData[],
   split: boolean,
   selectedId: string | null,
+  caption?: { title: string; meta: string },
 ): string | null {
   if (!source.width || !source.height) return null
   const out = document.createElement('canvas')
@@ -307,6 +558,8 @@ function composeBoardPng(
       paintLabelBadge(ctx, text, cx, cy, scale, selectedId === f.id)
     }
   }
+
+  if (caption) paintImageCaption(ctx, caption.title, caption.meta, scale)
 
   const url = out.toDataURL('image/png')
   return !url || url === 'data:,' ? null : url
@@ -414,44 +667,76 @@ function BoardHalf({
   onPointerDown?: () => void
   showGroove: boolean
 }) {
+  const { surface: surfaceMap, rim: rimMap } = getWoodTextures()
   const geometry = useMemo(() => {
-    return new THREE.ExtrudeGeometry(makeHalfShape(side), {
-      depth: 0.12,
+    const g = new THREE.ExtrudeGeometry(makeHalfShape(side), {
+      depth: BOARD_THICKNESS,
       bevelEnabled: false,
       steps: 1,
-      curveSegments: 1,
+      curveSegments: 20,
+      UVGenerator: boardUVGenerator,
     })
+    g.computeVertexNormals()
+    flattenExtrudeCapNormals(g, BOARD_THICKNESS)
+    return g
   }, [side])
-  useEffect(() => () => geometry.dispose(), [geometry])
+  const surfaceGeometry = useMemo(() => tessellateShapeGeometry(makeHalfShape(side)), [side])
+  const rimGeometry = useMemo(() => {
+    const g = new THREE.ExtrudeGeometry(makeHalfRimShape(side), {
+      depth: RIM_HEIGHT,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 20,
+      UVGenerator: boardUVGenerator,
+    })
+    g.computeVertexNormals()
+    flattenExtrudeCapNormals(g, RIM_HEIGHT)
+    return g
+  }, [side])
+  useEffect(() => () => {
+    geometry.dispose()
+    surfaceGeometry.dispose()
+    rimGeometry.dispose()
+  }, [geometry, surfaceGeometry, rimGeometry])
 
   const offsetX = split ? (side === 'left' ? -SPLIT_GAP / 2 : SPLIT_GAP / 2) : 0
-  const rimX = side === 'left' ? -2.75 : 2.75
-  const outerX = side === 'left' ? -5.55 : 5.55
 
   return (
     <group position={[offsetX, 0, 0]}>
       <mesh
         geometry={geometry}
         rotation={[Math.PI / 2, 0, 0]}
-        position={[0, 0.12, 0]}
+        position={[0, BOARD_THICKNESS, 0]}
         receiveShadow
         castShadow
+      >
+        <meshStandardMaterial color="#e6d4b6" roughness={0.82} metalness={0.03} />
+      </mesh>
+      <mesh
+        geometry={surfaceGeometry}
+        rotation={[Math.PI / 2, 0, 0]}
+        position={[0, BOARD_THICKNESS + 0.002, 0]}
+        receiveShadow
         onPointerDown={onPointerDown}
         name={`board-${side}`}
       >
-        <meshStandardMaterial color="#e5d5b5" roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+        <meshStandardMaterial
+          map={surfaceMap}
+          roughness={0.82}
+          metalness={0.03}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
-      <mesh position={[outerX, 0.08, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.35, 0.16, 11]} />
-        {woodMat('#d4c4a0', 0.8)}
-      </mesh>
-      <mesh position={[rimX, 0.08, -5.55]} castShadow receiveShadow>
-        <boxGeometry args={[5.6, 0.16, 0.35]} />
-        {woodMat('#d4c4a0', 0.8)}
-      </mesh>
-      <mesh position={[rimX, 0.08, 5.55]} castShadow receiveShadow>
-        <boxGeometry args={[5.6, 0.16, 0.35]} />
-        {woodMat('#d4c4a0', 0.8)}
+      <mesh
+        geometry={rimGeometry}
+        rotation={[Math.PI / 2, 0, 0]}
+        position={[0, RIM_HEIGHT, 0]}
+        receiveShadow
+        castShadow
+      >
+        <meshStandardMaterial map={rimMap} roughness={0.78} metalness={0.04} />
       </mesh>
       {showGroove && <SnakeGroove />}
     </group>
@@ -646,7 +931,7 @@ function FigureMesh({
           <div
             data-figure-label={label}
             data-selected={selected ? 'true' : 'false'}
-            style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 12, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}
+            style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '3px 12px', borderRadius: 6, fontSize: 18, whiteSpace: 'nowrap', border: selected ? '1px solid #fff' : 'none' }}
           >
             {label}
           </div>
@@ -759,6 +1044,7 @@ function Scene({
   }, [dragging, onPointerMove, onPointerUp])
   return (
     <>
+      <color attach="background" args={[SCENE_BG]} />
       <ambientLight intensity={0.65} />
       <directionalLight position={[5, 12, 6]} intensity={1.2} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-4, 6, -3]} intensity={0.35} />
@@ -967,14 +1253,20 @@ export default function App() {
       return
     }
     try {
-      const url = composeBoardPng(pane, canvas, cameraRef.current, figures, split, selectedId)
+      const stored = readSaves()
+      const name = saveName.trim() || stored.find((s) => s.id === selectedSaveId)?.name || saves.find((s) => s.id === selectedSaveId)?.name || 'Aufstellung'
+      const version = latestVersionForName(stored.length ? stored : saves, name)
+      const url = composeBoardPng(pane, canvas, cameraRef.current, figures, split, selectedId, {
+        title: `${name} · v${version}`,
+        meta: new Date().toLocaleString('de-DE'),
+      })
       if (!url) {
         showNotice('error', 'Bild konnte nicht erzeugt werden.')
         return
       }
       const a = document.createElement('a')
       a.href = url
-      a.download = `${fileSafeName(saveName.trim() || 'Aufstellung')}.png`
+      a.download = `${fileSafeName(name)}.png`
       a.click()
       showNotice('ok', 'Bild gespeichert')
     } catch {
@@ -1181,7 +1473,7 @@ export default function App() {
           <div style={{ fontSize: 11, opacity: 0.5 }}>Ziehen = verschieben · Klick = auswählen</div>
         </div>
       </aside>
-      <div ref={canvasPaneRef} data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, minHeight: 0, position: 'relative', touchAction: 'none', background: '#1a2530' }}>
+      <div ref={canvasPaneRef} data-testid="canvas-pane" style={{ flex: '1 1 auto', minWidth: 0, minHeight: 0, position: 'relative', touchAction: 'none', background: SCENE_BG }}>
         <ErrorBoundary
           fallback={
             <div data-testid="webgl-fallback" style={{ padding: 16, color: '#dce8df', fontSize: 13 }}>
@@ -1201,8 +1493,9 @@ export default function App() {
               powerPreference: 'default',
               failIfMajorPerformanceCaveat: false,
             }}
-            style={{ width: '100%', height: '100%', display: 'block', background: 'linear-gradient(to bottom, #3a4a5a 0%, #1a2530 100%)', touchAction: 'none' }}
+            style={{ width: '100%', height: '100%', display: 'block', background: SCENE_BG, touchAction: 'none' }}
             onCreated={({ gl }) => {
+              gl.setClearColor(SCENE_BG, 1)
               gl.domElement.style.touchAction = 'none'
               gl.domElement.style.width = '100%'
               gl.domElement.style.height = '100%'

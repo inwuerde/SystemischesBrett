@@ -265,11 +265,12 @@ test.describe('SystemischesBrett – Speicher im Browser & Versionierung', () =>
   })
 
   test('Als Bild speichern lädt eine PNG-Datei herunter', async ({ page }) => {
+    await page.getByPlaceholder('Dateiname / Bezeichnung…').fill('Ecke-Test')
     await expect(page.getByTestId('save-image')).toBeVisible()
     const downloadPromise = page.waitForEvent('download')
     await page.getByTestId('save-image').click()
     const download = await downloadPromise
-    expect(download.suggestedFilename()).toMatch(/\.png$/)
+    expect(download.suggestedFilename()).toMatch(/Ecke-Test\.png/)
     await expectNotice(page, 'Bild gespeichert')
   })
 
